@@ -40,6 +40,18 @@ npm start
 > 참고: 무료 서브도메인(예: `*.onrender.com`)에서도 동작하지만, Discord OAuth Redirect URI는
 > 실제 사용 도메인과 일치해야 합니다.
 
+## 배포 (Railway 기준)
+
+Render 대신 Railway로도 바로 배포할 수 있습니다.
+
+1. Railway 로그인 → **New Project** → **Deploy from GitHub repo** 선택
+2. `Citadel_idioma` 레포 연결
+3. **Variables**에 `.env` 값들을 그대로 등록
+4. Deploy 완료 후 생성된 도메인(예: `https://citadel-idioma.up.railway.app`) 확인
+5. Discord OAuth Redirect URI에 위 도메인의 콜백 주소 등록  
+   예: `https://citadel-idioma.up.railway.app/auth/discord/callback`
+6. 커스텀 도메인을 쓸 경우 Railway에서 도메인 추가 후 CNAME 설정
+
 ## 주요 기능
 
 - Discord OAuth 로그인 + 지정 Role 보유 여부 확인 (App/Web 로그인)
