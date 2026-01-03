@@ -24,6 +24,9 @@ const {
   PORT = 3000,
 } = process.env;
 
+const DEFAULT_BLINK_ADDRESS = "becadecitadel@blink.sv";
+const effectiveBlinkAddress = BLINK_LIGHTNING_ADDRESS || DEFAULT_BLINK_ADDRESS;
+
 const hasDiscordConfig =
   DISCORD_CLIENT_ID &&
   DISCORD_CLIENT_SECRET &&
@@ -50,8 +53,10 @@ const pendingDonations = new Map();
 
 const createDonationId = () => crypto.randomUUID();
 
-const buildDonationComment = (note, donationId, maxLength) => {
-  const base = note?.trim() ? note.trim() : "기부";
+const buildDonationComment = (note, donationId, maxLength, lightningAddress) => {
+  const noteLabel = note?.trim() ? `메모: ${note.trim()}` : "메모: 없음";
+  const addressLabel = lightningAddress ? `주소: ${lightningAddress}` : "";
+  const base = [noteLabel, addressLabel].filter(Boolean).join(" / ");
   const suffix = ` donation:${donationId}`;
   const max = maxLength ? Math.max(0, maxLength) : 160;
   const trimmedBase = base.length + suffix.length > max ? base.slice(0, max - suffix.length) : base;
@@ -68,6 +73,9 @@ const parseLightningAddress = (address) => {
   }
   return { name, domain };
 };
+
+const isBolt11Invoice = (invoice) =>
+  Boolean(invoice) && /^ln(bc|tb|tbs|bcrt)[0-9a-z]+$/i.test(invoice.trim());
 
 const sendDiscordShare = async ({ dataUrl, plan, studyTime, goalRate, minutes, sats, donationMode, wordCount, username, donationNote }) => {
   if (!DISCORD_WEBHOOK_URL) {
@@ -251,18 +259,7 @@ app.get("/api/session", (req, res) => {
   });
 });
 
-app.get("/api/config", (req, res) => {
-  res.json({
-    blinkAddress: BLINK_LIGHTNING_ADDRESS || "",
-  });
-});
-
 app.post("/api/donation-invoice", async (req, res) => {
-  if (!BLINK_LIGHTNING_ADDRESS) {
-    res.status(400).json({ message: "BLINK_LIGHTNING_ADDRESS가 설정되지 않았습니다." });
-    return;
-  }
-
   const {
     dataUrl,
     plan,
@@ -288,9 +285,11 @@ app.post("/api/donation-invoice", async (req, res) => {
     return;
   }
 
-  const addressParts = parseLightningAddress(BLINK_LIGHTNING_ADDRESS);
+  const addressParts = parseLightningAddress(effectiveBlinkAddress);
   if (!addressParts) {
-    res.status(400).json({ message: "BLINK_LIGHTNING_ADDRESS 형식이 올바르지 않습니다." });
+    res
+      .status(400)
+      .json({ message: "Blink Lightning 주소 형식이 올바르지 않습니다." });
     return;
   }
 
@@ -309,13 +308,44 @@ app.post("/api/donation-invoice", async (req, res) => {
       res.status(502).json({ message: "LNURL 콜백 주소가 없습니다." });
       return;
     }
+    const minSendable = Number(lnurlData?.minSendable || 0);
+    const maxSendable = Number(lnurlData?.maxSendable || 0);
     const donationId = createDonationId();
     const amountMsats = satsNumber * 1000;
+    if (minSendable && amountMsats < minSendable) {
+      res.status(400).json({
+        message: `기부 사토시가 최소 금액보다 작습니다. (최소 ${Math.ceil(
+          minSendable / 1000
+        )} sats)`,
+      });
+      return;
+    }
+    if (maxSendable && amountMsats > maxSendable) {
+      res.status(400).json({
+        message: `기부 사토시가 최대 금액보다 큽니다. (최대 ${Math.floor(
+          maxSendable / 1000
+        )} sats)`,
+      });
+      return;
+    }
     const commentAllowed = Number(lnurlData?.commentAllowed || 0);
-    const comment = buildDonationComment(donationNote, donationId, commentAllowed);
+    if (!commentAllowed && donationNote?.trim()) {
+      res.status(400).json({
+        message: "해당 LNURL 주소는 메모를 지원하지 않습니다. 메모를 비워주세요.",
+      });
+      return;
+    }
+    const comment = buildDonationComment(
+      donationNote,
+      donationId,
+      commentAllowed,
+      effectiveBlinkAddress
+    );
     const callbackUrl = new URL(callback);
     callbackUrl.searchParams.set("amount", String(amountMsats));
-    callbackUrl.searchParams.set("comment", comment);
+    if (commentAllowed) {
+      callbackUrl.searchParams.set("comment", comment);
+    }
 
     const invoiceResponse = await fetch(callbackUrl.toString());
     if (!invoiceResponse.ok) {
@@ -325,8 +355,10 @@ app.post("/api/donation-invoice", async (req, res) => {
     }
     const invoiceData = await invoiceResponse.json();
     const invoice = invoiceData?.pr || invoiceData?.paymentRequest;
-    if (!invoice) {
-      res.status(502).json({ message: "인보이스 응답이 올바르지 않습니다." });
+    if (!invoice || !isBolt11Invoice(invoice)) {
+      res
+        .status(502)
+        .json({ message: "BOLT11 인보이스 생성에 실패했습니다. LNURL 응답을 확인해주세요." });
       return;
     }
 
