@@ -117,6 +117,11 @@ textarea {
   min-height: 80px;
 }
 
+textarea[readonly] {
+  background: #f9fafb;
+  color: #111827;
+}
+
 select {
   padding: 10px 12px;
   border-radius: 10px;
@@ -185,6 +190,77 @@ button.ghost {
   padding: 8px 12px;
   border-radius: 999px;
   font-size: 13px;
+}
+
+.session-list {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.session-title {
+  margin: 0;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.session-items {
+  display: grid;
+  gap: 12px;
+}
+
+.session-item {
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  display: grid;
+  gap: 8px;
+}
+
+.session-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-index {
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.session-status {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.session-status.success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.session-status.pending {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.session-meta {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.session-meta strong {
+  color: #111827;
 }
 
 .locked {

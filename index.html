@@ -74,6 +74,11 @@
               <button id="pause">일시정지</button>
               <button id="reset" class="ghost">리셋</button>
             </div>
+            <div class="session-list">
+              <p class="session-title">오늘 공부 기록</p>
+              <div id="session-list" class="session-items"></div>
+              <p id="session-empty" class="hint">아직 저장된 공부 기록이 없습니다.</p>
+            </div>
             <div class="row">
               <span class="pill">오늘 누적: <strong id="total-today">0분</strong></span>
               <span class="pill">목표 달성률: <strong id="goal-progress">0%</strong></span>
@@ -90,12 +95,8 @@
           </p>
           <div class="stack">
             <label>
-              공부한 언어
-              <input id="study-language" placeholder="예: Spanish" />
-            </label>
-            <label>
-              오늘 공부한 주제
-              <input id="study-topic" placeholder="예: 회화 3과" />
+              오늘의 학습 목표 (자동 불러오기)
+              <textarea id="study-plan-preview" rows="2" readonly></textarea>
             </label>
             <div class="row">
               <button id="open-camera">카메라 열기</button>

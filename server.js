@@ -18,7 +18,8 @@ const {
   DISCORD_ROLE_ID,
   DISCORD_GUILD_NAME = "citadel.sx",
   DISCORD_WEBHOOK_URL,
-  DONATION_WEBHOOK_URL,
+  BLINK_WEBHOOK_URL,
+  BLINK_API_KEY,
   SESSION_SECRET,
   PORT = 3000,
 } = process.env;
@@ -223,7 +224,16 @@ app.post("/api/share", async (req, res) => {
     return;
   }
 
-  const { dataUrl, language, topic, minutes, sats, donationMode, wordCount } = req.body || {};
+  const {
+    dataUrl,
+    plan,
+    studyTime,
+    goalRate,
+    minutes,
+    sats,
+    donationMode,
+    wordCount,
+  } = req.body || {};
   if (!dataUrl) {
     res.status(400).json({ message: "공유할 이미지가 없습니다." });
     return;
@@ -237,10 +247,13 @@ app.post("/api/share", async (req, res) => {
 
   try {
     const form = new FormData();
+    const planLabel = plan || "학습 목표 미입력";
+    const studyTimeLabel = studyTime || `${minutes ?? 0}분`;
+    const goalRateLabel = goalRate || "0.0%";
     const modeLabel =
       donationMode === "words" ? `Words: ${wordCount}개` : `Study Time: ${minutes}분`;
     const payload = {
-      content: `오늘의 공부 인증\\nLanguage: ${language}\\nTopic: ${topic}\\n${modeLabel}\\nSats: ${sats} sats`,
+      content: `오늘의 공부 인증\\n학습목표: ${planLabel}\\nStudy Time: ${studyTimeLabel}\\nGoal Rate: ${goalRateLabel}\\n${modeLabel}\\nSats: ${sats} sats`,
     };
     form.set("payload_json", JSON.stringify(payload));
     const file = new Blob([parsed.buffer], { type: parsed.mime });
@@ -256,11 +269,23 @@ app.post("/api/share", async (req, res) => {
       throw new Error(text || "Discord webhook failed");
     }
 
-    if (DONATION_WEBHOOK_URL) {
-      await fetch(DONATION_WEBHOOK_URL, {
+    if (BLINK_WEBHOOK_URL) {
+      const blinkHeaders = { "Content-Type": "application/json" };
+      if (BLINK_API_KEY) {
+        blinkHeaders.Authorization = `Bearer ${BLINK_API_KEY}`;
+      }
+      await fetch(BLINK_WEBHOOK_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ minutes, sats, language, topic }),
+        headers: blinkHeaders,
+        body: JSON.stringify({
+          minutes,
+          sats,
+          plan: planLabel,
+          studyTime: studyTimeLabel,
+          goalRate: goalRateLabel,
+          donationMode,
+          wordCount,
+        }),
       });
     }
 

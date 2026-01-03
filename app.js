@@ -31,9 +31,10 @@ const discordBanner = document.getElementById("discord-banner");
 const discordUsername = document.getElementById("discord-username");
 const discordGuild = document.getElementById("discord-guild");
 const allowedServer = document.getElementById("allowed-server");
+const sessionList = document.getElementById("session-list");
+const sessionEmpty = document.getElementById("session-empty");
 
-const studyLanguageInput = document.getElementById("study-language");
-const studyTopicInput = document.getElementById("study-topic");
+const studyPlanPreview = document.getElementById("study-plan-preview");
 const openCameraButton = document.getElementById("open-camera");
 const captureButton = document.getElementById("capture");
 const generateButton = document.getElementById("generate");
@@ -56,12 +57,27 @@ let photoSource = null;
 
 const todayKey = new Date().toISOString().slice(0, 10);
 const planKey = `citadel-plan-${todayKey}`;
+const sessionsKey = `citadel-sessions-${todayKey}`;
 
 const formatTime = (seconds) => {
   const hrs = String(Math.floor(seconds / 3600)).padStart(2, "0");
   const mins = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
   const secs = String(seconds % 60).padStart(2, "0");
   return `${hrs}:${mins}:${secs}`;
+};
+
+const formatMinutesSeconds = (seconds) => {
+  const mins = String(Math.floor(seconds / 60)).padStart(2, "0");
+  const secs = String(seconds % 60).padStart(2, "0");
+  return `${mins}분 ${secs}초`;
+};
+
+const getGoalProgress = (totalSeconds) => {
+  const goalMinutes = Number(goalInput.value || 0);
+  if (goalMinutes <= 0) {
+    return 0;
+  }
+  return Math.min(100, (totalSeconds / 60 / goalMinutes) * 100);
 };
 
 const getStoredTotal = () => {
@@ -75,12 +91,8 @@ const setStoredTotal = (value) => {
 
 const updateTotals = () => {
   const totalSeconds = getStoredTotal();
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  totalTodayEl.textContent = `${String(minutes).padStart(2, "0")}분 ${String(seconds).padStart(2, "0")}초`;
-  const goalMinutes = Number(goalInput.value || 0);
-  const progress = goalMinutes > 0 ? Math.min(100, (totalSeconds / 60 / goalMinutes) * 100) : 0;
-  goalProgressEl.textContent = `${progress.toFixed(1)}%`;
+  totalTodayEl.textContent = formatMinutesSeconds(totalSeconds);
+  goalProgressEl.textContent = `${getGoalProgress(totalSeconds).toFixed(1)}%`;
   updateSats();
 };
 
@@ -122,6 +134,56 @@ const resetTimer = () => {
   updateDisplay();
 };
 
+const getPlanValue = () => {
+  return studyPlanInput?.value.trim() || localStorage.getItem(planKey) || "";
+};
+
+const loadSessions = () => {
+  try {
+    const raw = localStorage.getItem(sessionsKey);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+};
+
+const saveSessions = (sessions) => {
+  localStorage.setItem(sessionsKey, JSON.stringify(sessions));
+};
+
+const renderSessions = () => {
+  if (!sessionList) {
+    return;
+  }
+  const sessions = loadSessions();
+  sessionList.innerHTML = "";
+  if (sessionEmpty) {
+    sessionEmpty.style.display = sessions.length ? "none" : "block";
+  }
+  sessions.forEach((session, index) => {
+    const item = document.createElement("div");
+    item.className = "session-item";
+    const achieved = session.achieved;
+    item.innerHTML = `
+      <div class="session-header">
+        <span class="session-index">${index + 1}회차</span>
+        <span class="session-status ${achieved ? "success" : "pending"}">${
+      achieved ? "달성" : "미달성"
+    }</span>
+      </div>
+      <div class="session-meta">
+        <div>실제 공부 시간: <strong>${formatMinutesSeconds(
+          session.durationSeconds
+        )}</strong></div>
+        <div>목표 공부 시간: <strong>${session.goalMinutes}분</strong></div>
+        <div>학습 목표: <strong>${session.plan || "미입력"}</strong></div>
+      </div>
+    `;
+    sessionList.appendChild(item);
+  });
+};
+
 const finishSession = () => {
   if (elapsedSeconds === 0) {
     finishButton.textContent = "기록할 시간이 없습니다";
@@ -131,16 +193,29 @@ const finishSession = () => {
     return;
   }
   pauseTimer();
+  const plan = getPlanValue();
+  const goalMinutes = Number(goalInput.value || 0);
+  const achieved = goalMinutes > 0 ? elapsedSeconds >= goalMinutes * 60 : false;
+  const sessions = loadSessions();
+  sessions.push({
+    durationSeconds: elapsedSeconds,
+    goalMinutes,
+    plan,
+    achieved,
+    timestamp: new Date().toISOString(),
+  });
+  saveSessions(sessions);
   const total = getStoredTotal() + elapsedSeconds;
   setStoredTotal(total);
   elapsedSeconds = 0;
   updateDisplay();
   updateTotals();
+  renderSessions();
   finishButton.textContent = "인증 카드 만들기 완료!";
   setTimeout(() => {
     finishButton.textContent = "공부 종료 & 인증하기";
   }, 2000);
-  document.getElementById("study-language").focus();
+  openCameraButton?.focus();
 };
 
 const updateSats = () => {
@@ -168,6 +243,9 @@ const loadStudyPlan = () => {
   if (savedPlan && studyPlanInput) {
     studyPlanInput.value = savedPlan;
   }
+  if (studyPlanPreview) {
+    studyPlanPreview.value = savedPlan || "";
+  }
 };
 
 const saveStudyPlan = () => {
@@ -180,10 +258,16 @@ const saveStudyPlan = () => {
     if (planStatus) {
       planStatus.textContent = "학습 목표가 저장되었습니다.";
     }
+    if (studyPlanPreview) {
+      studyPlanPreview.value = value;
+    }
   } else {
     localStorage.removeItem(planKey);
     if (planStatus) {
       planStatus.textContent = "학습 목표는 자동 저장됩니다.";
+    }
+    if (studyPlanPreview) {
+      studyPlanPreview.value = "";
     }
   }
 };
@@ -362,16 +446,17 @@ const drawBadge = () => {
   context.font = "bold 52px sans-serif";
   context.fillText("오늘의 공부 인증", 60, badgeCanvas.height - 200);
 
-  context.font = "bold 40px sans-serif";
-  const language = studyLanguageInput.value || "언어 미입력";
-  context.fillText(`Language: ${language}`, 60, badgeCanvas.height - 140);
+  context.font = "bold 36px sans-serif";
+  const plan = getPlanValue() || "학습 목표 미입력";
+  context.fillText(`학습목표: ${plan}`, 60, badgeCanvas.height - 140);
 
   context.font = "28px sans-serif";
-  const topic = studyTopicInput.value || "주제 미입력";
-  context.fillText(`Topic: ${topic}`, 60, badgeCanvas.height - 90);
+  const totalSeconds = getStoredTotal();
+  const studyTimeLabel = formatMinutesSeconds(totalSeconds);
+  context.fillText(`Study Time: ${studyTimeLabel}`, 60, badgeCanvas.height - 90);
 
-  const totalMinutes = Math.floor(getStoredTotal() / 60);
-  context.fillText(`Study Time: ${totalMinutes}분`, 60, badgeCanvas.height - 48);
+  const goalRate = getGoalProgress(totalSeconds).toFixed(1);
+  context.fillText(`Goal Rate: ${goalRate}%`, 60, badgeCanvas.height - 48);
 
   context.font = "24px sans-serif";
   const date = new Date().toLocaleDateString("ko-KR", {
@@ -398,11 +483,13 @@ const shareToDiscord = async () => {
     alert("먼저 인증 카드를 생성해주세요.");
     return;
   }
+  const totalSeconds = getStoredTotal();
   const payload = {
     dataUrl,
-    language: studyLanguageInput.value || "언어 미입력",
-    topic: studyTopicInput.value || "주제 미입력",
-    minutes: Math.floor(getStoredTotal() / 60),
+    plan: getPlanValue() || "학습 목표 미입력",
+    studyTime: formatMinutesSeconds(totalSeconds),
+    goalRate: `${getGoalProgress(totalSeconds).toFixed(1)}%`,
+    minutes: Math.floor(totalSeconds / 60),
     sats: Number((satsTotalEl.textContent || "0").replace(/\D/g, "")) || 0,
     donationMode: donationMode?.value || "time",
     wordCount: Number(wordCountInput?.value || 0),
@@ -467,6 +554,7 @@ window.addEventListener("beforeunload", () => {
 
 initializeTotals();
 loadStudyPlan();
+renderSessions();
 
 const loadSession = async () => {
   try {
