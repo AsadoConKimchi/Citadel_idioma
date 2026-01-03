@@ -290,6 +290,10 @@ button.ghost {
   display: none;
 }
 
+#badge {
+  display: none;
+}
+
 .profile {
   border-radius: 14px;
   overflow: hidden;
@@ -314,6 +318,22 @@ button.ghost {
   height: 56px;
   border-radius: 50%;
   background: #e5e7eb;
+}
+
+.login-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: #0f172a;
+  background: #e2e8f0;
+  border-radius: 999px;
+  padding: 8px 12px;
+}
+
+.login-label {
+  font-size: 12px;
+  color: #475569;
 }
 
 .profile-name {

@@ -18,8 +18,6 @@ const {
   DISCORD_ROLE_ID,
   DISCORD_GUILD_NAME = "citadel.sx",
   DISCORD_WEBHOOK_URL,
-  BLINK_WEBHOOK_URL,
-  BLINK_API_KEY,
   SESSION_SECRET,
   PORT = 3000,
 } = process.env;
@@ -255,9 +253,9 @@ app.post("/api/share", async (req, res) => {
     const payload = {
       content: `오늘의 공부 인증\\n학습목표: ${planLabel}\\nStudy Time: ${studyTimeLabel}\\nGoal Rate: ${goalRateLabel}\\n${modeLabel}\\nSats: ${sats} sats`,
     };
-    form.set("payload_json", JSON.stringify(payload));
+    form.append("payload_json", JSON.stringify(payload));
     const file = new Blob([parsed.buffer], { type: parsed.mime });
-    form.set("file", file, "citadel_idioma_badge.png");
+    form.append("file", file, "citadel_idioma_badge.png");
 
     const response = await fetch(DISCORD_WEBHOOK_URL, {
       method: "POST",
@@ -266,32 +264,15 @@ app.post("/api/share", async (req, res) => {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(text || "Discord webhook failed");
+      res
+        .status(502)
+        .json({ message: text || "Discord webhook failed", source: "discord" });
+      return;
     }
 
-    if (BLINK_WEBHOOK_URL) {
-      const blinkHeaders = { "Content-Type": "application/json" };
-      if (BLINK_API_KEY) {
-        blinkHeaders.Authorization = `Bearer ${BLINK_API_KEY}`;
-      }
-      await fetch(BLINK_WEBHOOK_URL, {
-        method: "POST",
-        headers: blinkHeaders,
-        body: JSON.stringify({
-          minutes,
-          sats,
-          plan: planLabel,
-          studyTime: studyTimeLabel,
-          goalRate: goalRateLabel,
-          donationMode,
-          wordCount,
-        }),
-      });
-    }
-
-    res.json({ message: "디스코드 공유와 기부 요청을 완료했습니다." });
+    res.json({ message: "디스코드 공유를 완료했습니다." });
   } catch (error) {
-    res.status(500).json({ message: "디스코드 공유에 실패했습니다." });
+    res.status(500).json({ message: "디스코드 공유에 실패했습니다.", source: "server" });
   }
 });
 

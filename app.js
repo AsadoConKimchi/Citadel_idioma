@@ -10,6 +10,7 @@ const planStatus = document.getElementById("plan-status");
 const shareDiscordButton = document.getElementById("share-discord");
 const shareStatus = document.getElementById("share-status");
 const donationMode = document.getElementById("donation-mode");
+const donationScope = document.getElementById("donation-scope");
 const wordCountField = document.getElementById("word-count-field");
 const wordRateField = document.getElementById("word-rate-field");
 const wordCountInput = document.getElementById("word-count");
@@ -33,6 +34,8 @@ const discordGuild = document.getElementById("discord-guild");
 const allowedServer = document.getElementById("allowed-server");
 const sessionList = document.getElementById("session-list");
 const sessionEmpty = document.getElementById("session-empty");
+const loginUser = document.getElementById("login-user");
+const loginUserName = document.getElementById("login-user-name");
 
 const studyPlanPreview = document.getElementById("study-plan-preview");
 const openCameraButton = document.getElementById("open-camera");
@@ -58,6 +61,7 @@ let photoSource = null;
 const todayKey = new Date().toISOString().slice(0, 10);
 const planKey = `citadel-plan-${todayKey}`;
 const sessionsKey = `citadel-sessions-${todayKey}`;
+const lastSessionKey = `citadel-last-session-${todayKey}`;
 
 const formatTime = (seconds) => {
   const hrs = String(Math.floor(seconds / 3600)).padStart(2, "0");
@@ -152,6 +156,15 @@ const saveSessions = (sessions) => {
   localStorage.setItem(sessionsKey, JSON.stringify(sessions));
 };
 
+const getLastSessionSeconds = () => {
+  const saved = Number(localStorage.getItem(lastSessionKey) || 0);
+  return Number.isNaN(saved) ? 0 : saved;
+};
+
+const setLastSessionSeconds = (value) => {
+  localStorage.setItem(lastSessionKey, String(value));
+};
+
 const renderSessions = () => {
   if (!sessionList) {
     return;
@@ -207,6 +220,7 @@ const finishSession = () => {
   saveSessions(sessions);
   const total = getStoredTotal() + elapsedSeconds;
   setStoredTotal(total);
+  setLastSessionSeconds(elapsedSeconds);
   elapsedSeconds = 0;
   updateDisplay();
   updateTotals();
@@ -216,6 +230,13 @@ const finishSession = () => {
     finishButton.textContent = "공부 종료 & 인증하기";
   }, 2000);
   openCameraButton?.focus();
+};
+
+const getDonationSeconds = () => {
+  if (donationScope?.value === "session") {
+    return getLastSessionSeconds();
+  }
+  return getStoredTotal();
 };
 
 const updateSats = () => {
@@ -228,7 +249,7 @@ const updateSats = () => {
     return;
   }
   const rate = Number(satsRateInput.value || 0);
-  const totalMinutes = Math.floor(getStoredTotal() / 60);
+  const totalMinutes = Math.floor(getDonationSeconds() / 60);
   const sats = totalMinutes * rate;
   satsTotalEl.textContent = `${sats} sats`;
 };
@@ -279,6 +300,11 @@ const setAuthState = ({ authenticated, authorized, user, guild, error }) => {
     mainContent.classList.add("locked");
     discordLogout.style.display = "none";
     discordProfile.style.display = "none";
+    if (loginUser) {
+      loginUser.classList.add("hidden");
+    }
+    discordAppLogin.style.display = "inline-flex";
+    discordWebLogin.style.display = "inline-flex";
     if (allowedServer) {
       allowedServer.textContent = "접속 가능 서버: 확인 실패";
     }
@@ -291,6 +317,11 @@ const setAuthState = ({ authenticated, authorized, user, guild, error }) => {
     mainContent.classList.add("locked");
     discordLogout.style.display = "none";
     discordProfile.style.display = "none";
+    if (loginUser) {
+      loginUser.classList.add("hidden");
+    }
+    discordAppLogin.style.display = "inline-flex";
+    discordWebLogin.style.display = "inline-flex";
     if (allowedServer) {
       allowedServer.textContent = "접속 가능 서버: 로그인 필요";
     }
@@ -303,9 +334,17 @@ const setAuthState = ({ authenticated, authorized, user, guild, error }) => {
     mainContent.classList.add("locked");
     discordLogout.style.display = "inline-flex";
     discordProfile.style.display = "none";
+    if (loginUser) {
+      loginUser.classList.remove("hidden");
+    }
+    discordAppLogin.style.display = "none";
+    discordWebLogin.style.display = "none";
     if (allowedServer) {
       const guildName = guild?.name ?? "citadel.sx";
       allowedServer.textContent = `접속 가능 서버: ${guildName}`;
+    }
+    if (user && loginUserName) {
+      loginUserName.textContent = user.username ?? "-";
     }
     return;
   }
@@ -315,6 +354,11 @@ const setAuthState = ({ authenticated, authorized, user, guild, error }) => {
   mainContent.classList.remove("locked");
   discordLogout.style.display = "inline-flex";
   discordProfile.style.display = "block";
+  if (loginUser) {
+    loginUser.classList.remove("hidden");
+  }
+  discordAppLogin.style.display = "none";
+  discordWebLogin.style.display = "none";
   if (user) {
     const avatarUrl = user.avatar
       ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`
@@ -326,6 +370,9 @@ const setAuthState = ({ authenticated, authorized, user, guild, error }) => {
     discordBanner.style.backgroundImage = bannerUrl ? `url(${bannerUrl})` : "";
     discordBanner.style.backgroundSize = "cover";
     discordUsername.textContent = user.username;
+    if (loginUserName) {
+      loginUserName.textContent = user.username;
+    }
   }
   if (guild?.name) {
     discordGuild.textContent = `서버: ${guild.name}`;
@@ -365,6 +412,7 @@ if (donationMode) {
     updateSats();
   });
 }
+donationScope?.addEventListener("change", updateSats);
 wordCountInput?.addEventListener("input", updateSats);
 wordRateInput?.addEventListener("input", updateSats);
 if (studyPlanInput) {
@@ -389,6 +437,7 @@ openCameraButton.addEventListener("click", async () => {
     cameraVideo.style.display = "block";
     snapshotCanvas.style.display = "none";
     photoPreview.style.display = "none";
+    badgeCanvas.style.display = "none";
   } catch (error) {
     alert("카메라를 열 수 없습니다. 권한을 확인해주세요.");
   }
@@ -404,6 +453,7 @@ captureButton.addEventListener("click", () => {
   snapshotCanvas.style.display = "block";
   cameraVideo.style.display = "none";
   photoPreview.style.display = "none";
+  badgeCanvas.style.display = "none";
   photoSource = snapshotCanvas;
   stopCamera();
 });
@@ -418,6 +468,7 @@ photoUpload.addEventListener("change", (event) => {
   photoPreview.style.display = "block";
   snapshotCanvas.style.display = "none";
   cameraVideo.style.display = "none";
+  badgeCanvas.style.display = "none";
   photoSource = photoPreview;
 });
 
@@ -439,24 +490,56 @@ const drawBadge = () => {
     context.drawImage(photoSource, x, y, width, height);
   }
 
+  const sessions = loadSessions();
+  const sessionLines = sessions.map((session, index) => {
+    const goalRate = session.goalMinutes
+      ? Math.min(100, (session.durationSeconds / 60 / session.goalMinutes) * 100)
+      : 0;
+    const plan = (session.plan || "미입력").trim();
+    const trimmedPlan = plan.length > 24 ? `${plan.slice(0, 24)}…` : plan;
+    return `${index + 1}회차 ${trimmedPlan} · ${formatMinutesSeconds(
+      session.durationSeconds
+    )} · ${goalRate.toFixed(1)}%`;
+  });
+  const maxSessionLines = 6;
+  const displayLines =
+    sessionLines.length > maxSessionLines
+      ? [
+          ...sessionLines.slice(0, maxSessionLines),
+          `외 ${sessionLines.length - maxSessionLines}회차 더 있음`,
+        ]
+      : sessionLines;
+  const overlayHeight = Math.min(520, 280 + displayLines.length * 28);
+
   context.fillStyle = "rgba(15, 23, 42, 0.65)";
-  context.fillRect(0, badgeCanvas.height - 280, badgeCanvas.width, 280);
+  context.fillRect(0, badgeCanvas.height - overlayHeight, badgeCanvas.width, overlayHeight);
 
   context.fillStyle = "#f8fafc";
   context.font = "bold 52px sans-serif";
-  context.fillText("오늘의 공부 인증", 60, badgeCanvas.height - 200);
+  context.fillText("오늘의 공부 인증", 60, badgeCanvas.height - overlayHeight + 90);
 
   context.font = "bold 36px sans-serif";
   const plan = getPlanValue() || "학습 목표 미입력";
-  context.fillText(`학습목표: ${plan}`, 60, badgeCanvas.height - 140);
+  context.fillText(`학습목표: ${plan}`, 60, badgeCanvas.height - overlayHeight + 150);
 
   context.font = "28px sans-serif";
   const totalSeconds = getStoredTotal();
   const studyTimeLabel = formatMinutesSeconds(totalSeconds);
-  context.fillText(`Study Time: ${studyTimeLabel}`, 60, badgeCanvas.height - 90);
+  context.fillText(`Study Time: ${studyTimeLabel}`, 60, badgeCanvas.height - overlayHeight + 205);
 
   const goalRate = getGoalProgress(totalSeconds).toFixed(1);
-  context.fillText(`Goal Rate: ${goalRate}%`, 60, badgeCanvas.height - 48);
+  context.fillText(`Goal Rate: ${goalRate}%`, 60, badgeCanvas.height - overlayHeight + 245);
+
+  if (displayLines.length) {
+    context.font = "24px sans-serif";
+    displayLines.forEach((line, index) => {
+      context.fillText(
+        line,
+        60,
+        badgeCanvas.height - overlayHeight + 285 + index * 28
+      );
+    });
+  }
 
   context.font = "24px sans-serif";
   const date = new Date().toLocaleDateString("ko-KR", {
@@ -464,11 +547,15 @@ const drawBadge = () => {
     month: "long",
     day: "numeric",
   });
-  context.fillText(date, badgeCanvas.width - 300, badgeCanvas.height - 48);
+  context.fillText(date, badgeCanvas.width - 300, badgeCanvas.height - 36);
 
   const dataUrl = badgeCanvas.toDataURL("image/png");
   downloadLink.href = dataUrl;
   downloadLink.style.display = "inline-flex";
+  badgeCanvas.style.display = "block";
+  snapshotCanvas.style.display = "none";
+  cameraVideo.style.display = "none";
+  photoPreview.style.display = "none";
   if (shareStatus) {
     shareStatus.textContent = "디스코드 공유와 기부 연동은 서버에서 설정해야 합니다.";
   }
@@ -484,14 +571,17 @@ const shareToDiscord = async () => {
     return;
   }
   const totalSeconds = getStoredTotal();
+  const donationSeconds = getDonationSeconds();
+  const donationMinutes = Math.floor(donationSeconds / 60);
   const payload = {
     dataUrl,
     plan: getPlanValue() || "학습 목표 미입력",
     studyTime: formatMinutesSeconds(totalSeconds),
     goalRate: `${getGoalProgress(totalSeconds).toFixed(1)}%`,
-    minutes: Math.floor(totalSeconds / 60),
+    minutes: donationMinutes,
     sats: Number((satsTotalEl.textContent || "0").replace(/\D/g, "")) || 0,
     donationMode: donationMode?.value || "time",
+    donationScope: donationScope?.value || "total",
     wordCount: Number(wordCountInput?.value || 0),
   };
   try {
@@ -501,8 +591,14 @@ const shareToDiscord = async () => {
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || "공유에 실패했습니다.");
+      let errorMessage = "";
+      try {
+        const parsed = await response.clone().json();
+        errorMessage = parsed?.message || "";
+      } catch (parseError) {
+        errorMessage = await response.text();
+      }
+      throw new Error(errorMessage || "공유에 실패했습니다.");
     }
     const result = await response.json();
     if (shareStatus) {
@@ -510,7 +606,9 @@ const shareToDiscord = async () => {
     }
   } catch (error) {
     if (shareStatus) {
-      shareStatus.textContent = "공유에 실패했습니다. 서버 설정을 확인해주세요.";
+      shareStatus.textContent = error?.message
+        ? `공유에 실패했습니다. ${error.message}`
+        : "공유에 실패했습니다. 서버 설정을 확인해주세요.";
     }
   }
 };
@@ -528,7 +626,7 @@ if (shareDiscordButton) {
 }
 
 donateButton.addEventListener("click", () => {
-  const totalMinutes = Math.floor(getStoredTotal() / 60);
+  const totalMinutes = Math.floor(getDonationSeconds() / 60);
   const mode = donationMode?.value || "time";
   const sats =
     mode === "words"
@@ -541,6 +639,7 @@ donateButton.addEventListener("click", () => {
     sats,
     minutes: totalMinutes,
     mode,
+    scope: donationScope?.value || "total",
     words: Number(wordCountInput?.value || 0),
     note,
   });
