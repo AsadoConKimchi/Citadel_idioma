@@ -50,8 +50,10 @@ const pendingDonations = new Map();
 
 const createDonationId = () => crypto.randomUUID();
 
-const buildDonationComment = (note, donationId, maxLength) => {
-  const base = note?.trim() ? note.trim() : "기부";
+const buildDonationComment = (note, donationId, maxLength, lightningAddress) => {
+  const noteLabel = note?.trim() ? `메모: ${note.trim()}` : "메모: 없음";
+  const addressLabel = lightningAddress ? `주소: ${lightningAddress}` : "";
+  const base = [noteLabel, addressLabel].filter(Boolean).join(" / ");
   const suffix = ` donation:${donationId}`;
   const max = maxLength ? Math.max(0, maxLength) : 160;
   const trimmedBase = base.length + suffix.length > max ? base.slice(0, max - suffix.length) : base;
@@ -251,12 +253,6 @@ app.get("/api/session", (req, res) => {
   });
 });
 
-app.get("/api/config", (req, res) => {
-  res.json({
-    blinkAddress: BLINK_LIGHTNING_ADDRESS || "",
-  });
-});
-
 app.post("/api/donation-invoice", async (req, res) => {
   if (!BLINK_LIGHTNING_ADDRESS) {
     res.status(400).json({ message: "BLINK_LIGHTNING_ADDRESS가 설정되지 않았습니다." });
@@ -312,7 +308,12 @@ app.post("/api/donation-invoice", async (req, res) => {
     const donationId = createDonationId();
     const amountMsats = satsNumber * 1000;
     const commentAllowed = Number(lnurlData?.commentAllowed || 0);
-    const comment = buildDonationComment(donationNote, donationId, commentAllowed);
+    const comment = buildDonationComment(
+      donationNote,
+      donationId,
+      commentAllowed,
+      BLINK_LIGHTNING_ADDRESS
+    );
     const callbackUrl = new URL(callback);
     callbackUrl.searchParams.set("amount", String(amountMsats));
     callbackUrl.searchParams.set("comment", comment);

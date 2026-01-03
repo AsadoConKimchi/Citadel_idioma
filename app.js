@@ -54,9 +54,6 @@ const donateButton = document.getElementById("donate");
 const donationStatus = document.getElementById("donation-status");
 const donationHistory = document.getElementById("donation-history");
 const donationHistoryEmpty = document.getElementById("donation-history-empty");
-const blinkAddressCard = document.getElementById("blink-address-card");
-const blinkAddressEl = document.getElementById("blink-address");
-const openWalletButton = document.getElementById("open-wallet");
 
 let timerInterval = null;
 let elapsedSeconds = 0;
@@ -314,26 +311,7 @@ const initializeTotals = () => {
   renderDonationHistory();
 };
 
-let blinkAddress = "";
-
-const updateBlinkAddress = (address) => {
-  blinkAddress = address;
-  if (!blinkAddressCard || !blinkAddressEl) {
-    return;
-  }
-  if (address) {
-    blinkAddressCard.classList.remove("hidden");
-    blinkAddressEl.textContent = address;
-  } else {
-    blinkAddressCard.classList.add("hidden");
-  }
-};
-
 const openLightningWallet = async () => {
-  if (!blinkAddress) {
-    alert("Blink Lightning 주소가 설정되지 않았습니다.");
-    return;
-  }
   const sats = Number((satsTotalEl.textContent || "0").replace(/\D/g, "")) || 0;
   if (sats <= 0) {
     alert("기부할 사토시 금액을 먼저 확인해주세요.");
@@ -695,57 +673,7 @@ const getBadgeDataUrl = () => {
 };
 
 const shareToDiscord = async () => {
-  if (!badgeCanvas) {
-    return;
-  }
-  const dataUrl = getBadgeDataUrl();
-  if (!dataUrl || dataUrl === "data:,") {
-    alert("먼저 인증 카드를 생성해주세요.");
-    return;
-  }
-  const lastSession = getLastSessionSeconds();
-  const totalSeconds = getStoredTotal();
-  const donationSeconds = getDonationSeconds();
-  const donationMinutes = Math.floor(donationSeconds / 60);
-  const payload = {
-    dataUrl,
-    plan: lastSession.plan || "학습 목표 미입력",
-    studyTime: formatMinutesSeconds(lastSession.durationSeconds || 0),
-    goalRate: `${lastSession.goalMinutes ? Math.min(100, (lastSession.durationSeconds / 60 / lastSession.goalMinutes) * 100).toFixed(1) : "0.0"}%`,
-    minutes: donationMinutes,
-    sats: Number((satsTotalEl.textContent || "0").replace(/\D/g, "")) || 0,
-    donationMode: donationMode?.value || "time",
-    donationScope: donationScope?.value || "total",
-    wordCount: Number(wordCountInput?.value || 0),
-    donationNote: donationNote?.value?.trim() || "",
-  };
-  try {
-    const response = await fetch("/api/share", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      let errorMessage = "";
-      try {
-        const parsed = await response.clone().json();
-        errorMessage = parsed?.message || "";
-      } catch (parseError) {
-        errorMessage = await response.text();
-      }
-      throw new Error(errorMessage || "공유에 실패했습니다.");
-    }
-    const result = await response.json();
-    if (shareStatus) {
-      shareStatus.textContent = result.message || "디스코드 공유 완료!";
-    }
-  } catch (error) {
-    if (shareStatus) {
-      shareStatus.textContent = error?.message
-        ? `공유에 실패했습니다. ${error.message}`
-        : "공유에 실패했습니다. 서버 설정을 확인해주세요.";
-    }
-  }
+  await openLightningWallet();
 };
 
 generateButton.addEventListener("click", () => {
@@ -759,7 +687,6 @@ generateButton.addEventListener("click", () => {
 if (shareDiscordButton) {
   shareDiscordButton.addEventListener("click", shareToDiscord);
 }
-openWalletButton?.addEventListener("click", openLightningWallet);
 
 donateButton.addEventListener("click", () => {
   const totalMinutes = Math.floor(getDonationSeconds() / 60);
@@ -812,18 +739,4 @@ const loadSession = async () => {
   }
 };
 
-const loadConfig = async () => {
-  try {
-    const response = await fetch("/api/config");
-    if (!response.ok) {
-      return;
-    }
-    const data = await response.json();
-    updateBlinkAddress(data?.blinkAddress || "");
-  } catch (error) {
-    updateBlinkAddress("");
-  }
-};
-
 loadSession();
-loadConfig();
