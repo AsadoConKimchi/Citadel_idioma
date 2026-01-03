@@ -54,9 +54,9 @@ const donateButton = document.getElementById("donate");
 const donationStatus = document.getElementById("donation-status");
 const donationHistory = document.getElementById("donation-history");
 const donationHistoryEmpty = document.getElementById("donation-history-empty");
-const blinkAddressCard = document.getElementById("blink-address-card");
-const blinkAddressEl = document.getElementById("blink-address");
-const openWalletButton = document.getElementById("open-wallet");
+const walletModal = document.getElementById("wallet-modal");
+const walletModalClose = document.getElementById("wallet-modal-close");
+const walletOptions = document.querySelectorAll(".wallet-option");
 
 let timerInterval = null;
 let elapsedSeconds = 0;
@@ -314,26 +314,7 @@ const initializeTotals = () => {
   renderDonationHistory();
 };
 
-let blinkAddress = "";
-
-const updateBlinkAddress = (address) => {
-  blinkAddress = address;
-  if (!blinkAddressCard || !blinkAddressEl) {
-    return;
-  }
-  if (address) {
-    blinkAddressCard.classList.remove("hidden");
-    blinkAddressEl.textContent = address;
-  } else {
-    blinkAddressCard.classList.add("hidden");
-  }
-};
-
 const openLightningWallet = async () => {
-  if (!blinkAddress) {
-    alert("Blink Lightning 주소가 설정되지 않았습니다.");
-    return;
-  }
   const sats = Number((satsTotalEl.textContent || "0").replace(/\D/g, "")) || 0;
   if (sats <= 0) {
     alert("기부할 사토시 금액을 먼저 확인해주세요.");
@@ -391,7 +372,7 @@ const openLightningWallet = async () => {
       shareStatus.textContent =
         "지갑 앱을 열었습니다. 결제 완료 시 디스코드에 자동 공유됩니다.";
     }
-    window.location.href = `lightning:${result.invoice}`;
+    openWalletSelection(result.invoice);
   } catch (error) {
     if (shareStatus) {
       shareStatus.textContent = error?.message
@@ -399,6 +380,45 @@ const openLightningWallet = async () => {
         : "인보이스 생성에 실패했습니다.";
     }
   }
+};
+
+const walletDeepLinks = {
+  walletofsatoshi: (invoice) =>
+    `walletofsatoshi://pay?invoice=${encodeURIComponent(invoice)}`,
+  speed: (invoice) => `speed://pay?invoice=${encodeURIComponent(invoice)}`,
+  blink: (invoice) => `blink://pay?invoice=${encodeURIComponent(invoice)}`,
+  strike: (invoice) => `strike://pay?invoice=${encodeURIComponent(invoice)}`,
+};
+
+const openWalletSelection = (invoice) => {
+  if (!walletModal) {
+    window.location.href = `lightning:${invoice}`;
+    return;
+  }
+  walletModal.dataset.invoice = invoice;
+  walletModal.classList.remove("hidden");
+  walletModal.setAttribute("aria-hidden", "false");
+};
+
+const closeWalletSelection = () => {
+  if (!walletModal) {
+    return;
+  }
+  walletModal.classList.add("hidden");
+  walletModal.setAttribute("aria-hidden", "true");
+  walletModal.dataset.invoice = "";
+};
+
+const launchWallet = (walletKey) => {
+  const invoice = walletModal?.dataset?.invoice;
+  if (!invoice) {
+    alert("인보이스 정보를 찾을 수 없습니다.");
+    return;
+  }
+  const deepLinkBuilder = walletDeepLinks[walletKey];
+  const deepLink = deepLinkBuilder ? deepLinkBuilder(invoice) : `lightning:${invoice}`;
+  closeWalletSelection();
+  window.location.href = deepLink;
 };
 
 const loadStudyPlan = () => {
@@ -695,57 +715,7 @@ const getBadgeDataUrl = () => {
 };
 
 const shareToDiscord = async () => {
-  if (!badgeCanvas) {
-    return;
-  }
-  const dataUrl = getBadgeDataUrl();
-  if (!dataUrl || dataUrl === "data:,") {
-    alert("먼저 인증 카드를 생성해주세요.");
-    return;
-  }
-  const lastSession = getLastSessionSeconds();
-  const totalSeconds = getStoredTotal();
-  const donationSeconds = getDonationSeconds();
-  const donationMinutes = Math.floor(donationSeconds / 60);
-  const payload = {
-    dataUrl,
-    plan: lastSession.plan || "학습 목표 미입력",
-    studyTime: formatMinutesSeconds(lastSession.durationSeconds || 0),
-    goalRate: `${lastSession.goalMinutes ? Math.min(100, (lastSession.durationSeconds / 60 / lastSession.goalMinutes) * 100).toFixed(1) : "0.0"}%`,
-    minutes: donationMinutes,
-    sats: Number((satsTotalEl.textContent || "0").replace(/\D/g, "")) || 0,
-    donationMode: donationMode?.value || "time",
-    donationScope: donationScope?.value || "total",
-    wordCount: Number(wordCountInput?.value || 0),
-    donationNote: donationNote?.value?.trim() || "",
-  };
-  try {
-    const response = await fetch("/api/share", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      let errorMessage = "";
-      try {
-        const parsed = await response.clone().json();
-        errorMessage = parsed?.message || "";
-      } catch (parseError) {
-        errorMessage = await response.text();
-      }
-      throw new Error(errorMessage || "공유에 실패했습니다.");
-    }
-    const result = await response.json();
-    if (shareStatus) {
-      shareStatus.textContent = result.message || "디스코드 공유 완료!";
-    }
-  } catch (error) {
-    if (shareStatus) {
-      shareStatus.textContent = error?.message
-        ? `공유에 실패했습니다. ${error.message}`
-        : "공유에 실패했습니다. 서버 설정을 확인해주세요.";
-    }
-  }
+  await openLightningWallet();
 };
 
 generateButton.addEventListener("click", () => {
@@ -759,7 +729,6 @@ generateButton.addEventListener("click", () => {
 if (shareDiscordButton) {
   shareDiscordButton.addEventListener("click", shareToDiscord);
 }
-openWalletButton?.addEventListener("click", openLightningWallet);
 
 donateButton.addEventListener("click", () => {
   const totalMinutes = Math.floor(getDonationSeconds() / 60);
@@ -793,6 +762,21 @@ initializeTotals();
 loadStudyPlan();
 renderSessions();
 
+walletModalClose?.addEventListener("click", closeWalletSelection);
+walletModal?.addEventListener("click", (event) => {
+  if (event.target === walletModal) {
+    closeWalletSelection();
+  }
+});
+walletOptions.forEach((option) => {
+  option.addEventListener("click", (event) => {
+    const walletKey = event.currentTarget?.dataset?.wallet;
+    if (walletKey) {
+      launchWallet(walletKey);
+    }
+  });
+});
+
 const loadSession = async () => {
   try {
     const params = new URLSearchParams(window.location.search);
@@ -812,18 +796,4 @@ const loadSession = async () => {
   }
 };
 
-const loadConfig = async () => {
-  try {
-    const response = await fetch("/api/config");
-    if (!response.ok) {
-      return;
-    }
-    const data = await response.json();
-    updateBlinkAddress(data?.blinkAddress || "");
-  } catch (error) {
-    updateBlinkAddress("");
-  }
-};
-
 loadSession();
-loadConfig();
