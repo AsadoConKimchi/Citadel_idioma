@@ -915,12 +915,11 @@ const openLightningWallet = async () => {
 };
 
 const walletDeepLinks = {
-  walletofsatoshi: (invoice) =>
-    `walletofsatoshi://pay?invoice=${encodeURIComponent(invoice)}`,
-  speed: (invoice) => `speed://pay?invoice=${encodeURIComponent(invoice)}`,
+  walletofsatoshi: (invoice) => `lightning:${invoice}`,
+  speed: (invoice) => `lightning:${invoice}`,
   blink: (invoice) => `lightning:${invoice}`,
-  strike: (invoice) => `strike://pay?invoice=${encodeURIComponent(invoice)}`,
-  zeus: (invoice) => `zeus://pay?invoice=${encodeURIComponent(invoice)}`,
+  strike: (invoice) => `lightning:${invoice}`,
+  zeus: (invoice) => `lightning:${invoice}`,
 };
 
 const openWalletDeepLink = (deepLink) => {
