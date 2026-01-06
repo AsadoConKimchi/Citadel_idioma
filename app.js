@@ -59,12 +59,16 @@ const walletModal = document.getElementById("wallet-modal");
 const walletModalClose = document.getElementById("wallet-modal-close");
 const walletStatus = document.getElementById("wallet-status");
 const walletOptions = document.querySelectorAll(".wallet-option");
+const walletInvoice = document.getElementById("wallet-invoice");
+const walletInvoiceCopy = document.getElementById("wallet-invoice-copy");
+const walletInvoiceQr = document.getElementById("wallet-invoice-qr");
 
 let timerInterval = null;
 let elapsedSeconds = 0;
 let isRunning = false;
 let cameraStream = null;
 let photoSource = null;
+let latestDonationPayload = null;
 
 const getTodayKey = () => new Date().toISOString().slice(0, 10);
 
@@ -116,6 +120,8 @@ const normalizeInvoice = (invoice) => {
     ? trimmed.slice("lightning:".length).trim()
     : trimmed;
 };
+
+const getLightningUri = (invoice) => `lightning:${normalizeInvoice(invoice)}`;
 
 const updateTotals = () => {
   if (!totalTodayEl || !goalProgressEl) {
@@ -393,7 +399,7 @@ const renderDonationHistory = () => {
   if (!donationHistory || !donationHistoryEmpty) {
     return;
   }
-  const history = getDonationHistory();
+  const history = getDonationHistory().filter((item) => item.date === todayKey);
   donationHistory.innerHTML = "";
   donationHistoryEmpty.style.display = history.length ? "none" : "block";
   history.slice().reverse().forEach((item) => {
@@ -453,23 +459,39 @@ const renderDonationHistoryPage = () => {
     monthSelect.appendChild(option);
   });
   const renderForMonth = (monthKey) => {
-    const history = getDonationHistory().filter((entry) =>
-      entry.date?.startsWith(monthKey)
-    );
+    const history = getDonationHistory()
+      .filter((entry) => entry.date?.startsWith(monthKey))
+      .sort((a, b) => (a.date > b.date ? -1 : 1));
     listEl.innerHTML = "";
     emptyEl.style.display = history.length ? "none" : "block";
-    history.slice().reverse().forEach((item) => {
-      const entry = document.createElement("div");
-      entry.className = "history-item";
-      const scopeLabel = item.scope === "session" ? "회차 별" : "누적";
-      const modeLabel = item.mode === "words" ? "공부량" : "공부 시간";
-      entry.innerHTML = `
-        <div><strong>${item.date}</strong> · ${scopeLabel} · ${modeLabel}</div>
-        <div>기부: <strong>${item.sats} sats</strong> · ${item.minutes}분</div>
-        <div>메모: ${item.note || "없음"}</div>
-      `;
-      listEl.appendChild(entry);
-    });
+    const grouped = history.reduce((acc, entry) => {
+      if (!acc[entry.date]) {
+        acc[entry.date] = [];
+      }
+      acc[entry.date].push(entry);
+      return acc;
+    }, {});
+    Object.keys(grouped)
+      .sort()
+      .reverse()
+      .forEach((date) => {
+        const dayBlock = document.createElement("div");
+        dayBlock.className = "history-day";
+        dayBlock.innerHTML = `<p class="history-day__title">${date}</p>`;
+        grouped[date].forEach((item) => {
+          const entry = document.createElement("div");
+          entry.className = "history-item";
+          const scopeLabel = item.scope === "session" ? "회차 별" : "누적";
+          const modeLabel = item.mode === "words" ? "공부량" : "공부 시간";
+          entry.innerHTML = `
+            <div>${scopeLabel} · ${modeLabel}</div>
+            <div>기부: <strong>${item.sats} sats</strong> · ${item.minutes}분</div>
+            <div>메모: ${item.note || "없음"}</div>
+          `;
+          dayBlock.appendChild(entry);
+        });
+        listEl.appendChild(dayBlock);
+      });
     if (currentLabel) {
       currentLabel.textContent = monthKey;
     }
@@ -526,6 +548,7 @@ const openLightningWallet = async () => {
     donationNote: donationNote?.value?.trim() || "",
     username: loginUserName?.textContent || "",
   };
+  latestDonationPayload = payload;
   try {
     const response = await fetch("/api/donation-invoice", {
       method: "POST",
@@ -585,6 +608,27 @@ const setWalletOptionsEnabled = (enabled) => {
   walletOptions.forEach((option) => {
     option.disabled = !enabled;
   });
+  if (walletInvoiceCopy) {
+    walletInvoiceCopy.disabled = !enabled;
+  }
+};
+
+const renderWalletInvoice = (invoice) => {
+  if (!walletInvoice || !walletInvoiceQr) {
+    return;
+  }
+  const normalizedInvoice = normalizeInvoice(invoice);
+  if (!normalizedInvoice) {
+    walletInvoice.classList.add("hidden");
+    walletInvoiceQr.src = "";
+    return;
+  }
+  walletInvoice.classList.remove("hidden");
+  const lightningUri = getLightningUri(normalizedInvoice);
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
+    lightningUri
+  )}`;
+  walletInvoiceQr.src = qrUrl;
 };
 
 const openWalletSelection = ({ invoice, message } = {}) => {
@@ -592,7 +636,7 @@ const openWalletSelection = ({ invoice, message } = {}) => {
     if (invoice) {
       const normalizedInvoice = normalizeInvoice(invoice);
       if (normalizedInvoice) {
-        window.location.href = `lightning:${normalizedInvoice}`;
+        window.location.href = getLightningUri(normalizedInvoice);
       }
     }
     return;
@@ -604,6 +648,7 @@ const openWalletSelection = ({ invoice, message } = {}) => {
     walletStatus.textContent =
       message || "선택한 지갑으로 인보이스를 전달합니다.";
   }
+  renderWalletInvoice(invoice);
   setWalletOptionsEnabled(Boolean(invoice));
 };
 
@@ -617,19 +662,59 @@ const closeWalletSelection = () => {
   if (walletStatus) {
     walletStatus.textContent = "선택한 지갑으로 인보이스를 전달합니다.";
   }
+  renderWalletInvoice("");
   setWalletOptionsEnabled(true);
 };
 
-const launchWallet = (walletKey) => {
-  const invoice = walletModal?.dataset?.invoice;
+const fetchLnurlInvoice = async () => {
+  if (!latestDonationPayload) {
+    throw new Error("기부 정보를 찾을 수 없습니다.");
+  }
+  const response = await fetch("/api/donation-lnurl", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sats: latestDonationPayload.sats,
+      donationNote: latestDonationPayload.donationNote,
+    }),
+  });
+  if (!response.ok) {
+    let errorMessage = "";
+    try {
+      const parsed = await response.clone().json();
+      errorMessage = parsed?.message || "";
+    } catch (error) {
+      errorMessage = await response.text();
+    }
+    throw new Error(errorMessage || "LNURL 생성에 실패했습니다.");
+  }
+  const result = await response.json();
+  if (!result?.lnurl) {
+    throw new Error("LNURL 응답이 비어 있습니다.");
+  }
+  return result.lnurl;
+};
+
+const launchWallet = async (walletKey) => {
+  const lnurlWallets = new Set(["walletofsatoshi", "strike"]);
+  let invoice = walletModal?.dataset?.invoice;
   if (!invoice) {
     alert("인보이스 정보를 찾을 수 없습니다.");
     return;
   }
-  const deepLinkBuilder = walletDeepLinks[walletKey];
-  const deepLink = deepLinkBuilder ? deepLinkBuilder(invoice) : `lightning:${invoice}`;
-  closeWalletSelection();
-  window.location.href = deepLink;
+  try {
+    if (lnurlWallets.has(walletKey)) {
+      invoice = await fetchLnurlInvoice();
+    }
+    const deepLinkBuilder = walletDeepLinks[walletKey];
+    const deepLink = deepLinkBuilder ? deepLinkBuilder(invoice) : `lightning:${invoice}`;
+    closeWalletSelection();
+    window.location.href = deepLink;
+  } catch (error) {
+    if (walletStatus) {
+      walletStatus.textContent = error?.message || "지갑 실행에 실패했습니다.";
+    }
+  }
 };
 
 const loadStudyPlan = () => {
@@ -1015,12 +1100,29 @@ walletModal?.addEventListener("click", (event) => {
   }
 });
 walletOptions.forEach((option) => {
-  option.addEventListener("click", (event) => {
+  option.addEventListener("click", async (event) => {
     const walletKey = event.currentTarget?.dataset?.wallet;
     if (walletKey) {
-      launchWallet(walletKey);
+      await launchWallet(walletKey);
     }
   });
+});
+
+walletInvoiceCopy?.addEventListener("click", async () => {
+  const invoice = walletModal?.dataset?.invoice || "";
+  if (!invoice) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(invoice);
+    if (walletStatus) {
+      walletStatus.textContent = "인보이스를 복사했습니다.";
+    }
+  } catch (error) {
+    if (walletStatus) {
+      walletStatus.textContent = "인보이스 복사에 실패했습니다.";
+    }
+  }
 });
 
 const loadSession = async ({ ignoreUrlFlag = false } = {}) => {

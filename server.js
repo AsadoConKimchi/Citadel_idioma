@@ -58,6 +58,75 @@ let blinkBtcWalletId = "";
 
 const createDonationId = () => crypto.randomUUID();
 
+const BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+
+const bech32Polymod = (values) => {
+  const generator = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+  let chk = 1;
+  values.forEach((value) => {
+    const top = chk >> 25;
+    chk = ((chk & 0x1ffffff) << 5) ^ value;
+    generator.forEach((gen, index) => {
+      if ((top >> index) & 1) {
+        chk ^= gen;
+      }
+    });
+  });
+  return chk;
+};
+
+const bech32HrpExpand = (hrp) => [
+  ...hrp.split("").map((char) => char.charCodeAt(0) >> 5),
+  0,
+  ...hrp.split("").map((char) => char.charCodeAt(0) & 31),
+];
+
+const bech32CreateChecksum = (hrp, data) => {
+  const values = [...bech32HrpExpand(hrp), ...data, 0, 0, 0, 0, 0, 0];
+  const mod = bech32Polymod(values) ^ 1;
+  return Array.from({ length: 6 }, (_, index) => (mod >> (5 * (5 - index))) & 31);
+};
+
+const bech32Encode = (hrp, data) => {
+  const combined = data.concat(bech32CreateChecksum(hrp, data));
+  return `${hrp}1${combined.map((value) => BECH32_CHARSET[value]).join("")}`;
+};
+
+const convertBits = (data, from, to, pad) => {
+  let acc = 0;
+  let bits = 0;
+  const result = [];
+  const maxv = (1 << to) - 1;
+  for (const value of data) {
+    if (value < 0 || value >> from) {
+      return null;
+    }
+    acc = (acc << from) | value;
+    bits += from;
+    while (bits >= to) {
+      bits -= to;
+      result.push((acc >> bits) & maxv);
+    }
+  }
+  if (pad) {
+    if (bits) {
+      result.push((acc << (to - bits)) & maxv);
+    }
+  } else if (bits >= from || ((acc << (to - bits)) & maxv)) {
+    return null;
+  }
+  return result;
+};
+
+const encodeLnurl = (url) => {
+  const data = Buffer.from(url, "utf8");
+  const fiveBitData = convertBits([...data], 8, 5, true);
+  if (!fiveBitData) {
+    throw new Error("LNURL 인코딩에 실패했습니다.");
+  }
+  return bech32Encode("lnurl", fiveBitData).toLowerCase();
+};
+
 const buildDonationComment = (note, donationId, maxLength, lightningAddress) => {
   const noteLabel = note?.trim() ? `메모: ${note.trim()}` : "메모: 없음";
   const addressLabel = lightningAddress ? `주소: ${lightningAddress}` : "";
@@ -543,6 +612,74 @@ app.post("/api/donation-invoice", async (req, res) => {
     res.json({ invoice, donationId });
   } catch (error) {
     res.status(500).json({ message: "인보이스 생성 중 오류가 발생했습니다." });
+  }
+});
+
+app.post("/api/donation-lnurl", async (req, res) => {
+  const { sats, donationNote } = req.body || {};
+
+  const satsNumber = Number(sats || 0);
+  if (!satsNumber || satsNumber <= 0) {
+    res.status(400).json({ message: "기부할 사토시 금액이 올바르지 않습니다." });
+    return;
+  }
+
+  const addressParts = parseLightningAddress(effectiveBlinkAddress);
+  if (!addressParts) {
+    res
+      .status(400)
+      .json({ message: "Blink Lightning 주소 형식이 올바르지 않습니다." });
+    return;
+  }
+
+  try {
+    const lnurlResponse = await fetch(
+      `https://${addressParts.domain}/.well-known/lnurlp/${addressParts.name}`
+    );
+    if (!lnurlResponse.ok) {
+      const text = await lnurlResponse.text();
+      res.status(502).json({ message: text || "LNURL 조회에 실패했습니다." });
+      return;
+    }
+    const lnurlData = await lnurlResponse.json();
+    const callback = lnurlData?.callback;
+    if (!callback) {
+      res.status(502).json({ message: "LNURL 콜백 주소가 없습니다." });
+      return;
+    }
+    const minSendable = Number(lnurlData?.minSendable || 0);
+    const maxSendable = Number(lnurlData?.maxSendable || 0);
+    const amountMsats = satsNumber * 1000;
+    if (minSendable && amountMsats < minSendable) {
+      res.status(400).json({
+        message: `기부 사토시가 최소 금액보다 작습니다. (최소 ${Math.ceil(
+          minSendable / 1000
+        )} sats)`,
+      });
+      return;
+    }
+    if (maxSendable && amountMsats > maxSendable) {
+      res.status(400).json({
+        message: `기부 사토시가 최대 금액보다 큽니다. (최대 ${Math.floor(
+          maxSendable / 1000
+        )} sats)`,
+      });
+      return;
+    }
+    const donationId = createDonationId();
+    const commentAllowed = Number(lnurlData?.commentAllowed || 0);
+    const comment = commentAllowed
+      ? buildDonationComment(donationNote, donationId, commentAllowed, effectiveBlinkAddress)
+      : "";
+    const callbackUrl = new URL(callback);
+    callbackUrl.searchParams.set("amount", String(amountMsats));
+    if (commentAllowed) {
+      callbackUrl.searchParams.set("comment", comment);
+    }
+    const lnurl = encodeLnurl(callbackUrl.toString());
+    res.json({ lnurl, donationId });
+  } catch (error) {
+    res.status(500).json({ message: error?.message || "LNURL 생성 실패" });
   }
 });
 
