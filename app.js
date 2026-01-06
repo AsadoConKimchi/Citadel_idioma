@@ -624,6 +624,13 @@ const donationModeLabels = {
   other: "기타",
 };
 
+const donationModeLabels = {
+  time: "공부 시간",
+  pages: "페이지 수",
+  problems: "문제/단어 수",
+  other: "기타",
+};
+
 const getDonationHistoryMonths = () => {
   const history = getDonationHistory();
   const months = new Set();
@@ -1081,6 +1088,41 @@ const applyStudyPlanValue = (value) => {
   if (studyPlanPreview) {
     studyPlanPreview.value = trimmed;
   }
+  if (studyPlanInput) {
+    studyPlanInput.value = trimmed;
+  }
+  if (studyPlanPreview) {
+    studyPlanPreview.value = trimmed;
+  }
+};
+
+const saveStudyPlan = () => {
+  if (!studyPlanInput) {
+    return;
+  }
+  applyStudyPlanValue(studyPlanInput.value);
+};
+
+const updateDonationModeUI = () => {
+  if (!donationMode || !donationCountField || !donationCountInput) {
+    return;
+  }
+  const mode = donationMode.value;
+  const isTime = mode === "time";
+  donationCountField.classList.toggle("hidden", isTime);
+  const label = donationCountField.querySelector("span");
+  const labelTextMap = {
+    pages: "오늘 공부한 페이지 수",
+    problems: "오늘 푼 문제(단어) 수",
+    other: "기타 기준 수량",
+  };
+  if (label) {
+    label.textContent = labelTextMap[mode] || "기준 수량";
+  }
+  if (isTime) {
+    donationCountInput.value = "0";
+  }
+  updateSats();
 };
 
 const saveStudyPlan = () => {
