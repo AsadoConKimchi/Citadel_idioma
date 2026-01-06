@@ -70,6 +70,22 @@ let cameraStream = null;
 let photoSource = null;
 let latestDonationPayload = null;
 
+const donationControls = [
+  donationScope,
+  donationMode,
+  satsRateInput,
+  wordCountInput,
+  wordRateInput,
+];
+
+const setDonationControlsEnabled = (enabled) => {
+  donationControls.forEach((control) => {
+    if (control) {
+      control.disabled = !enabled;
+    }
+  });
+};
+
 const getTodayKey = () => new Date().toISOString().slice(0, 10);
 
 const todayKey = getTodayKey();
@@ -158,6 +174,7 @@ const startTimer = () => {
   }
   isRunning = true;
   timerInterval = setInterval(tick, 1000);
+  setDonationControlsEnabled(false);
 };
 
 const pauseTimer = () => {
@@ -172,6 +189,7 @@ const resetTimer = () => {
   pauseTimer();
   elapsedSeconds = 0;
   updateDisplay();
+  setDonationControlsEnabled(true);
 };
 
 const getPlanValue = () => {
@@ -339,6 +357,7 @@ const finishSession = () => {
   if (photoSource) {
     drawBadge();
   }
+  setDonationControlsEnabled(true);
   openCameraButton?.focus();
 };
 
@@ -597,11 +616,25 @@ const openLightningWallet = async () => {
 
 const walletDeepLinks = {
   walletofsatoshi: (invoice) =>
-    `walletofsatoshi://pay?invoice=${encodeURIComponent(getLightningUri(invoice))}`,
-  speed: (invoice) => `speed://pay?invoice=${encodeURIComponent(getLightningUri(invoice))}`,
+    `walletofsatoshi://pay?invoice=${encodeURIComponent(invoice)}`,
+  speed: (invoice) => `speed://pay?invoice=${encodeURIComponent(invoice)}`,
   blink: (invoice) => `lightning:${invoice}`,
-  strike: (invoice) => `strike://pay?invoice=${encodeURIComponent(getLightningUri(invoice))}`,
-  zeus: (invoice) => `zeus://pay?invoice=${encodeURIComponent(getLightningUri(invoice))}`,
+  strike: (invoice) => `strike://pay?invoice=${encodeURIComponent(invoice)}`,
+  zeus: (invoice) => `zeus://pay?invoice=${encodeURIComponent(invoice)}`,
+};
+
+const openWalletDeepLink = (deepLink, { useLinkClick = false } = {}) => {
+  if (useLinkClick) {
+    const link = document.createElement("a");
+    link.href = deepLink;
+    link.rel = "noopener";
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    return;
+  }
+  window.location.href = deepLink;
 };
 
 const setWalletOptionsEnabled = (enabled) => {
@@ -642,6 +675,7 @@ const openWalletSelection = ({ invoice, message } = {}) => {
     return;
   }
   walletModal.dataset.invoice = normalizeInvoice(invoice) || "";
+  walletModal.dataset.lnurl = "";
   walletModal.classList.remove("hidden");
   walletModal.setAttribute("aria-hidden", "false");
   if (walletStatus) {
@@ -659,6 +693,7 @@ const closeWalletSelection = () => {
   walletModal.classList.add("hidden");
   walletModal.setAttribute("aria-hidden", "true");
   walletModal.dataset.invoice = "";
+  walletModal.dataset.lnurl = "";
   if (walletStatus) {
     walletStatus.textContent = "선택한 지갑으로 인보이스를 전달합니다.";
   }
@@ -697,19 +732,26 @@ const fetchLnurlInvoice = async () => {
 
 const launchWallet = async (walletKey) => {
   const lnurlWallets = new Set(["walletofsatoshi", "strike"]);
-  let invoice = walletModal?.dataset?.invoice;
-  if (!invoice) {
+  const linkClickWallets = new Set(["speed", "zeus"]);
+  const modalInvoice = walletModal?.dataset?.invoice;
+  if (!modalInvoice) {
     alert("인보이스 정보를 찾을 수 없습니다.");
     return;
   }
   try {
+    let invoice = modalInvoice;
     if (lnurlWallets.has(walletKey)) {
       invoice = await fetchLnurlInvoice();
+      if (walletModal) {
+        walletModal.dataset.lnurl = invoice;
+      }
+    } else {
+      invoice = normalizeInvoice(invoice);
     }
     const deepLinkBuilder = walletDeepLinks[walletKey];
     const deepLink = deepLinkBuilder ? deepLinkBuilder(invoice) : `lightning:${invoice}`;
     closeWalletSelection();
-    window.location.href = deepLink;
+    openWalletDeepLink(deepLink, { useLinkClick: linkClickWallets.has(walletKey) });
   } catch (error) {
     if (walletStatus) {
       walletStatus.textContent = error?.message || "지갑 실행에 실패했습니다.";
@@ -1108,7 +1150,7 @@ walletOptions.forEach((option) => {
   });
 });
 
-walletInvoiceCopy?.addEventListener("click", async () => {
+const copyWalletInvoice = async () => {
   const invoice = walletModal?.dataset?.invoice || "";
   if (!invoice) {
     return;
@@ -1123,7 +1165,10 @@ walletInvoiceCopy?.addEventListener("click", async () => {
       walletStatus.textContent = "인보이스 복사에 실패했습니다.";
     }
   }
-});
+};
+
+walletInvoiceCopy?.addEventListener("click", copyWalletInvoice);
+walletInvoiceQr?.addEventListener("click", copyWalletInvoice);
 
 const loadSession = async ({ ignoreUrlFlag = false } = {}) => {
   try {

@@ -577,6 +577,7 @@ footer {
   background: #fff;
   padding: 8px;
   flex: 0 0 160px;
+  cursor: pointer;
 }
 
 .wallet-option {

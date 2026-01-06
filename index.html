@@ -79,6 +79,50 @@
               ></textarea>
             </label>
             <p class="hint" id="plan-status">학습 목표는 자동 저장됩니다.</p>
+            <p class="muted">사토시 기부 기준을 공부 시작 전에 설정하세요.</p>
+            <label>
+              기부 누적 방식
+              <select id="donation-scope">
+                <option value="session">회차 별 기부</option>
+                <option value="total">누적 기부</option>
+              </select>
+            </label>
+            <label>
+              기부 계산 방식
+              <select id="donation-mode">
+                <option value="time">공부 시간 기준</option>
+                <option value="words">공부량 기준 (암기 단어)</option>
+              </select>
+            </label>
+            <label>
+              기준 별 기부 사토시 양
+              <select id="sats-rate">
+                <option value="1">1 sats</option>
+                <option value="5">5 sats</option>
+                <option value="10" selected>10 sats</option>
+                <option value="20">20 sats</option>
+                <option value="50">50 sats</option>
+                <option value="100">100 sats</option>
+              </select>
+            </label>
+            <label id="word-count-field" class="hidden">
+              오늘 외운 단어 수
+              <input id="word-count" type="number" min="0" value="0" />
+            </label>
+            <label id="word-rate-field" class="hidden">
+              단어당 기부 사토시
+              <select id="word-rate">
+                <option value="1">1 sats</option>
+                <option value="5" selected>5 sats</option>
+                <option value="10">10 sats</option>
+                <option value="20">20 sats</option>
+                <option value="50">50 sats</option>
+              </select>
+            </label>
+            <div class="row">
+              <span class="pill">오늘 기부 예상: <strong id="sats-total">0 sats</strong></span>
+              <span class="pill">누적 기부: <strong id="sats-total-all">0 sats</strong></span>
+            </div>
             <div class="row">
               <button id="start" class="primary">시작</button>
               <button id="pause">일시정지</button>
@@ -128,62 +172,12 @@
             <div class="result">
               <a id="download" class="accent" download="citadel_idioma_badge.png">이미지 저장</a>
             </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>사토시 기부 계산</h2>
-          <p class="muted">공부 시간에 따라 기부할 사토시를 계산하고 기록합니다.</p>
-          <div class="stack">
-            <label>
-              기부 누적 방식
-              <select id="donation-scope">
-                <option value="session">회차 별 기부</option>
-                <option value="total">누적 기부</option>
-              </select>
-            </label>
-            <label>
-              기부 계산 방식
-              <select id="donation-mode">
-                <option value="time">공부 시간 기준</option>
-                <option value="words">공부량 기준 (암기 단어)</option>
-              </select>
-            </label>
-            <label>
-              기준 별 기부 사토시 양
-              <select id="sats-rate">
-                <option value="1">1 sats</option>
-                <option value="5">5 sats</option>
-                <option value="10" selected>10 sats</option>
-                <option value="20">20 sats</option>
-                <option value="50">50 sats</option>
-                <option value="100">100 sats</option>
-              </select>
-            </label>
-            <label id="word-count-field" class="hidden">
-              오늘 외운 단어 수
-              <input id="word-count" type="number" min="0" value="0" />
-            </label>
-            <label id="word-rate-field" class="hidden">
-              단어당 기부 사토시
-              <select id="word-rate">
-                <option value="1">1 sats</option>
-                <option value="5" selected>5 sats</option>
-                <option value="10">10 sats</option>
-                <option value="20">20 sats</option>
-                <option value="50">50 sats</option>
-              </select>
-            </label>
-            <div class="row">
-              <span class="pill">오늘 기부 예상: <strong id="sats-total">0 sats</strong></span>
-              <span class="pill">누적 기부: <strong id="sats-total-all">0 sats</strong></span>
-            </div>
             <label>
               기부 메모 (선택)
               <input id="donation-note" placeholder="예: 누적 공부 2시간 달성" />
             </label>
-            <button id="donate" class="primary">기부 기록 저장</button>
             <button id="share-discord" class="primary">디스코드에 공유 &amp; 사토시 기부</button>
+            <button id="donate" class="primary">기부 기록 저장</button>
             <p class="hint" id="share-status">
               디스코드 공유와 기부 연동은 서버에서 설정해야 합니다.
             </p>
