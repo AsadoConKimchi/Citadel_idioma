@@ -353,6 +353,16 @@ button.ghost {
   height: 56px;
   border-radius: 50%;
   background: #e5e7eb;
+  border: 3px solid transparent;
+  box-sizing: border-box;
+}
+
+.profile-body img.status-ok {
+  border-color: #16a34a;
+}
+
+.profile-body img.status-pending {
+  border-color: #dc2626;
 }
 
 .login-user {
