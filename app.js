@@ -77,6 +77,7 @@ let sessionPage = 1;
 let donationPage = 1;
 let donationHistoryPage = 1;
 const pendingDailyKey = "citadel-pending-daily";
+let hasPromptedDaily = false;
 
 const donationControls = [
   donationScope,
@@ -1118,64 +1119,6 @@ const updateDonationModeUI = () => {
   updateSats();
 };
 
-const saveStudyPlan = () => {
-  if (!studyPlanInput) {
-    return;
-  }
-  applyStudyPlanValue(studyPlanInput.value);
-};
-
-const updateDonationModeUI = () => {
-  if (!donationMode || !donationCountField || !donationCountInput) {
-    return;
-  }
-  const mode = donationMode.value;
-  const isTime = mode === "time";
-  donationCountField.classList.toggle("hidden", isTime);
-  const label = donationCountField.querySelector("span");
-  const labelTextMap = {
-    pages: "오늘 공부한 페이지 수",
-    problems: "오늘 푼 문제(단어) 수",
-    other: "기타 기준 수량",
-  };
-  if (label) {
-    label.textContent = labelTextMap[mode] || "기준 수량";
-  }
-  if (isTime) {
-    donationCountInput.value = "0";
-  }
-  updateSats();
-};
-
-const saveStudyPlan = () => {
-  if (!studyPlanInput) {
-    return;
-  }
-  applyStudyPlanValue(studyPlanInput.value);
-};
-
-const updateDonationModeUI = () => {
-  if (!donationMode || !donationCountField || !donationCountInput) {
-    return;
-  }
-  const mode = donationMode.value;
-  const isTime = mode === "time";
-  donationCountField.classList.toggle("hidden", isTime);
-  const label = donationCountField.querySelector("span");
-  const labelTextMap = {
-    pages: "오늘 공부한 페이지 수",
-    problems: "오늘 푼 문제(단어) 수",
-    other: "기타 기준 수량",
-  };
-  if (label) {
-    label.textContent = labelTextMap[mode] || "기준 수량";
-  }
-  if (isTime) {
-    donationCountInput.value = "0";
-  }
-  updateSats();
-};
-
 const updateDiscordProfile = ({ user, guild, authorized }) => {
   if (!discordProfile) {
     return;
@@ -1296,6 +1239,10 @@ const setAuthState = ({ authenticated, authorized, user, guild, error }) => {
   if (allowedServer) {
     const guildName = guild?.name ?? "citadel.sx";
     allowedServer.textContent = `접속 가능 서버: ${guildName}`;
+  }
+  if (!hasPromptedDaily) {
+    hasPromptedDaily = true;
+    promptPendingDailyDonation();
   }
 };
 
