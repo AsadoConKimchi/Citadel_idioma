@@ -560,14 +560,22 @@ footer {
   letter-spacing: 0.08em;
 }
 
+.wallet-invoice__content {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 .wallet-invoice__field {
   display: grid;
   gap: 8px;
+  flex: 1 1 200px;
 }
 
 .wallet-invoice__field textarea {
   width: 100%;
-  min-height: 90px;
+  min-height: 60px;
   font-size: 12px;
   line-height: 1.4;
 }
@@ -579,6 +587,7 @@ footer {
   justify-self: center;
   background: #fff;
   padding: 8px;
+  flex: 0 0 160px;
 }
 
 .wallet-option {
