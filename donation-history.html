@@ -16,13 +16,20 @@
     <header class="hero compact">
       <div>
         <p class="eyebrow">Citadel Idioma</p>
-        <h1>월별 기부 기록 보기</h1>
-        <p class="subtitle">스크롤로 월을 선택해 해당 월의 기부 기록을 확인하세요.</p>
+        <h1>기부하기</h1>
+        <p class="subtitle">현재 누적 금액을 확인하고 바로 기부할 수 있습니다.</p>
       </div>
     </header>
 
     <main>
       <section class="grid single">
+        <div class="card">
+          <h2>현재 누적 금액</h2>
+          <div class="stack">
+            <p class="pill">누적 금액: <strong id="donation-page-total">0 sats</strong></p>
+            <button id="donation-page-pay" class="primary">기부하기</button>
+          </div>
+        </div>
         <div class="card">
           <h2>기부 기록</h2>
           <div class="stack">
@@ -35,6 +42,7 @@
             </p>
             <div id="donation-history-list" class="history-list"></div>
             <p id="donation-history-empty-page" class="hint">선택한 월의 기부 기록이 없습니다.</p>
+            <div id="donation-history-pagination" class="pagination"></div>
           </div>
         </div>
       </section>
