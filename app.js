@@ -68,6 +68,7 @@ let elapsedSeconds = 0;
 let isRunning = false;
 let cameraStream = null;
 let photoSource = null;
+let latestDonationPayload = null;
 
 const getTodayKey = () => new Date().toISOString().slice(0, 10);
 
@@ -547,6 +548,7 @@ const openLightningWallet = async () => {
     donationNote: donationNote?.value?.trim() || "",
     username: loginUserName?.textContent || "",
   };
+  latestDonationPayload = payload;
   try {
     const response = await fetch("/api/donation-invoice", {
       method: "POST",
@@ -664,16 +666,55 @@ const closeWalletSelection = () => {
   setWalletOptionsEnabled(true);
 };
 
-const launchWallet = (walletKey) => {
-  const invoice = walletModal?.dataset?.invoice;
+const fetchLnurlInvoice = async () => {
+  if (!latestDonationPayload) {
+    throw new Error("기부 정보를 찾을 수 없습니다.");
+  }
+  const response = await fetch("/api/donation-lnurl", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sats: latestDonationPayload.sats,
+      donationNote: latestDonationPayload.donationNote,
+    }),
+  });
+  if (!response.ok) {
+    let errorMessage = "";
+    try {
+      const parsed = await response.clone().json();
+      errorMessage = parsed?.message || "";
+    } catch (error) {
+      errorMessage = await response.text();
+    }
+    throw new Error(errorMessage || "LNURL 생성에 실패했습니다.");
+  }
+  const result = await response.json();
+  if (!result?.lnurl) {
+    throw new Error("LNURL 응답이 비어 있습니다.");
+  }
+  return result.lnurl;
+};
+
+const launchWallet = async (walletKey) => {
+  const lnurlWallets = new Set(["walletofsatoshi", "strike"]);
+  let invoice = walletModal?.dataset?.invoice;
   if (!invoice) {
     alert("인보이스 정보를 찾을 수 없습니다.");
     return;
   }
-  const deepLinkBuilder = walletDeepLinks[walletKey];
-  const deepLink = deepLinkBuilder ? deepLinkBuilder(invoice) : `lightning:${invoice}`;
-  closeWalletSelection();
-  window.location.href = deepLink;
+  try {
+    if (lnurlWallets.has(walletKey)) {
+      invoice = await fetchLnurlInvoice();
+    }
+    const deepLinkBuilder = walletDeepLinks[walletKey];
+    const deepLink = deepLinkBuilder ? deepLinkBuilder(invoice) : `lightning:${invoice}`;
+    closeWalletSelection();
+    window.location.href = deepLink;
+  } catch (error) {
+    if (walletStatus) {
+      walletStatus.textContent = error?.message || "지갑 실행에 실패했습니다.";
+    }
+  }
 };
 
 const loadStudyPlan = () => {
@@ -1059,10 +1100,10 @@ walletModal?.addEventListener("click", (event) => {
   }
 });
 walletOptions.forEach((option) => {
-  option.addEventListener("click", (event) => {
+  option.addEventListener("click", async (event) => {
     const walletKey = event.currentTarget?.dataset?.wallet;
     if (walletKey) {
-      launchWallet(walletKey);
+      await launchWallet(walletKey);
     }
   });
 });
