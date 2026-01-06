@@ -60,7 +60,6 @@ const walletModalClose = document.getElementById("wallet-modal-close");
 const walletStatus = document.getElementById("wallet-status");
 const walletOptions = document.querySelectorAll(".wallet-option");
 const walletInvoice = document.getElementById("wallet-invoice");
-const walletInvoiceText = document.getElementById("wallet-invoice-text");
 const walletInvoiceCopy = document.getElementById("wallet-invoice-copy");
 const walletInvoiceQr = document.getElementById("wallet-invoice-qr");
 
@@ -597,10 +596,10 @@ const openLightningWallet = async () => {
 const walletDeepLinks = {
   walletofsatoshi: (invoice) =>
     `walletofsatoshi://pay?invoice=${encodeURIComponent(getLightningUri(invoice))}`,
-  speed: (invoice) => `speed://pay?invoice=${encodeURIComponent(invoice)}`,
+  speed: (invoice) => `speed://pay?invoice=${encodeURIComponent(getLightningUri(invoice))}`,
   blink: (invoice) => `lightning:${invoice}`,
   strike: (invoice) => `strike://pay?invoice=${encodeURIComponent(getLightningUri(invoice))}`,
-  zeus: (invoice) => `zeus://pay?invoice=${encodeURIComponent(invoice)}`,
+  zeus: (invoice) => `zeus://pay?invoice=${encodeURIComponent(getLightningUri(invoice))}`,
 };
 
 const setWalletOptionsEnabled = (enabled) => {
@@ -613,18 +612,16 @@ const setWalletOptionsEnabled = (enabled) => {
 };
 
 const renderWalletInvoice = (invoice) => {
-  if (!walletInvoice || !walletInvoiceText || !walletInvoiceQr) {
+  if (!walletInvoice || !walletInvoiceQr) {
     return;
   }
   const normalizedInvoice = normalizeInvoice(invoice);
   if (!normalizedInvoice) {
     walletInvoice.classList.add("hidden");
-    walletInvoiceText.value = "";
     walletInvoiceQr.src = "";
     return;
   }
   walletInvoice.classList.remove("hidden");
-  walletInvoiceText.value = normalizedInvoice;
   const lightningUri = getLightningUri(normalizedInvoice);
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
     lightningUri
@@ -1071,7 +1068,7 @@ walletOptions.forEach((option) => {
 });
 
 walletInvoiceCopy?.addEventListener("click", async () => {
-  const invoice = walletInvoiceText?.value || "";
+  const invoice = walletModal?.dataset?.invoice || "";
   if (!invoice) {
     return;
   }

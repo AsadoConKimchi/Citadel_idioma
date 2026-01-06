@@ -567,19 +567,6 @@ footer {
   flex-wrap: wrap;
 }
 
-.wallet-invoice__field {
-  display: grid;
-  gap: 8px;
-  flex: 1 1 200px;
-}
-
-.wallet-invoice__field textarea {
-  width: 100%;
-  min-height: 60px;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
 #wallet-invoice-qr {
   width: 100%;
   max-width: 240px;
