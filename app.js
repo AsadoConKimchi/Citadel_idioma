@@ -604,6 +604,16 @@ const walletDeepLinks = {
   zeus: (invoice) => `zeus://pay?invoice=${encodeURIComponent(invoice)}`,
 };
 
+const openWalletDeepLink = (deepLink, { openInNewTab = false } = {}) => {
+  if (openInNewTab) {
+    const opened = window.open(deepLink, "_blank");
+    if (opened) {
+      return;
+    }
+  }
+  window.location.href = deepLink;
+};
+
 const setWalletOptionsEnabled = (enabled) => {
   walletOptions.forEach((option) => {
     option.disabled = !enabled;
@@ -699,6 +709,7 @@ const fetchLnurlInvoice = async () => {
 
 const launchWallet = async (walletKey) => {
   const lnurlWallets = new Set(["walletofsatoshi", "strike"]);
+  const newTabWallets = new Set(["speed", "zeus"]);
   const modalInvoice = walletModal?.dataset?.invoice;
   if (!modalInvoice) {
     alert("인보이스 정보를 찾을 수 없습니다.");
@@ -717,7 +728,7 @@ const launchWallet = async (walletKey) => {
     const deepLinkBuilder = walletDeepLinks[walletKey];
     const deepLink = deepLinkBuilder ? deepLinkBuilder(invoice) : `lightning:${invoice}`;
     closeWalletSelection();
-    window.location.href = deepLink;
+    openWalletDeepLink(deepLink, { openInNewTab: newTabWallets.has(walletKey) });
   } catch (error) {
     if (walletStatus) {
       walletStatus.textContent = error?.message || "지갑 실행에 실패했습니다.";
