@@ -485,6 +485,36 @@ const saveStudyPlan = () => {
   }
 };
 
+const updateDiscordProfile = ({ user, guild, authorized }) => {
+  if (!discordProfile) {
+    return;
+  }
+  const avatarUrl = user?.avatar
+    ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`
+    : "https://cdn.discordapp.com/embed/avatars/0.png";
+  const bannerUrl = user?.banner
+    ? `https://cdn.discordapp.com/banners/${user.id}/${user.banner}.png?size=480`
+    : "";
+  discordAvatar.src = avatarUrl;
+  discordAvatar.alt = user?.username ? `${user.username} avatar` : "Discord avatar";
+  discordAvatar.classList.remove("status-ok", "status-pending");
+  if (authorized === true) {
+    discordAvatar.classList.add("status-ok");
+  } else if (authorized === false) {
+    discordAvatar.classList.add("status-pending");
+  }
+  discordBanner.style.backgroundImage = bannerUrl ? `url(${bannerUrl})` : "";
+  discordBanner.style.backgroundSize = "cover";
+  discordUsername.textContent = user?.username ?? "로그인된 사용자 없음";
+  if (discordGuild) {
+    const guildName = guild?.name ?? "-";
+    discordGuild.textContent = `서버: ${guildName}`;
+  }
+  if (loginUserName && user?.username) {
+    loginUserName.textContent = user.username;
+  }
+};
+
 const setAuthState = ({ authenticated, authorized, user, guild, error }) => {
   if (error) {
     discordStatus.textContent = `로그인 상태: ${error}`;
@@ -495,6 +525,9 @@ const setAuthState = ({ authenticated, authorized, user, guild, error }) => {
       discordRefresh.style.display = "none";
     }
     discordProfile.style.display = "none";
+    if (discordAvatar) {
+      discordAvatar.classList.remove("status-ok", "status-pending");
+    }
     if (loginUser) {
       loginUser.classList.add("hidden");
     }
@@ -515,6 +548,9 @@ const setAuthState = ({ authenticated, authorized, user, guild, error }) => {
       discordRefresh.style.display = "none";
     }
     discordProfile.style.display = "none";
+    if (discordAvatar) {
+      discordAvatar.classList.remove("status-ok", "status-pending");
+    }
     if (loginUser) {
       loginUser.classList.add("hidden");
     }
@@ -534,7 +570,7 @@ const setAuthState = ({ authenticated, authorized, user, guild, error }) => {
     if (discordRefresh) {
       discordRefresh.style.display = "inline-flex";
     }
-    discordProfile.style.display = "none";
+    discordProfile.style.display = "block";
     if (loginUser) {
       loginUser.classList.remove("hidden");
     }
@@ -547,6 +583,7 @@ const setAuthState = ({ authenticated, authorized, user, guild, error }) => {
     if (user && loginUserName) {
       loginUserName.textContent = user.username ?? "-";
     }
+    updateDiscordProfile({ user, guild, authorized: false });
     return;
   }
 
@@ -563,24 +600,7 @@ const setAuthState = ({ authenticated, authorized, user, guild, error }) => {
   }
   discordAppLogin.style.display = "none";
   discordWebLogin.style.display = "none";
-  if (user) {
-    const avatarUrl = user.avatar
-      ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`
-      : "";
-    const bannerUrl = user.banner
-      ? `https://cdn.discordapp.com/banners/${user.id}/${user.banner}.png?size=480`
-      : "";
-    discordAvatar.src = avatarUrl || "https://cdn.discordapp.com/embed/avatars/0.png";
-    discordBanner.style.backgroundImage = bannerUrl ? `url(${bannerUrl})` : "";
-    discordBanner.style.backgroundSize = "cover";
-    discordUsername.textContent = user.username;
-    if (loginUserName) {
-      loginUserName.textContent = user.username;
-    }
-  }
-  if (guild?.name) {
-    discordGuild.textContent = `서버: ${guild.name}`;
-  }
+  updateDiscordProfile({ user, guild, authorized: true });
   if (allowedServer) {
     const guildName = guild?.name ?? "citadel.sx";
     allowedServer.textContent = `접속 가능 서버: ${guildName}`;
