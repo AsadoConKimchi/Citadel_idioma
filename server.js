@@ -20,6 +20,8 @@ const {
   DISCORD_GUILD_NAME = "citadel.sx",
   DISCORD_WEBHOOK_URL,
   BLINK_LIGHTNING_ADDRESS,
+  BLINK_API_ENDPOINT,
+  BLINK_API_KEY,
   SESSION_SECRET,
   PORT = 3000,
 } = process.env;
@@ -50,6 +52,8 @@ app.use(
 app.use(express.static(__dirname));
 
 const pendingDonations = new Map();
+const pendingDonationsByInvoice = new Map();
+let blinkBtcWalletId = "";
 
 const createDonationId = () => crypto.randomUUID();
 
@@ -74,8 +78,41 @@ const parseLightningAddress = (address) => {
   return { name, domain };
 };
 
+const normalizeInvoice = (invoice) => {
+  if (!invoice) {
+    return "";
+  }
+  const trimmed = String(invoice).trim();
+  if (!trimmed) {
+    return "";
+  }
+  return trimmed.toLowerCase().startsWith("lightning:")
+    ? trimmed.slice("lightning:".length).trim()
+    : trimmed;
+};
+
 const isBolt11Invoice = (invoice) =>
   Boolean(invoice) && /^ln(bc|tb|tbs|bcrt)[0-9a-z]+$/i.test(invoice.trim());
+
+const resolveInvoiceCandidate = (candidate) => {
+  if (!candidate) {
+    return "";
+  }
+  if (typeof candidate === "string") {
+    return normalizeInvoice(candidate);
+  }
+  if (typeof candidate === "object") {
+    return normalizeInvoice(
+      candidate.paymentRequest ||
+        candidate.payment_request ||
+        candidate.pr ||
+        candidate.invoice ||
+        candidate.lnInvoice ||
+        candidate.ln_invoice
+    );
+  }
+  return "";
+};
 
 const sendDiscordShare = async ({ dataUrl, plan, studyTime, goalRate, minutes, sats, donationMode, wordCount, username, donationNote }) => {
   if (!DISCORD_WEBHOOK_URL) {
@@ -102,6 +139,90 @@ const sendDiscordShare = async ({ dataUrl, plan, studyTime, goalRate, minutes, s
     const text = await response.text();
     throw new Error(text || "Discord webhook failed");
   }
+};
+
+const blinkGraphqlRequest = async (query, variables = {}) => {
+  if (!BLINK_API_ENDPOINT || !BLINK_API_KEY) {
+    throw new Error("Blink API 설정이 필요합니다.");
+  }
+  const response = await fetch(BLINK_API_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-API-KEY": BLINK_API_KEY,
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || "Blink GraphQL 요청에 실패했습니다.");
+  }
+  const data = await response.json();
+  if (data?.errors?.length) {
+    throw new Error(data.errors.map((error) => error.message).join(", "));
+  }
+  return data?.data;
+};
+
+const getBlinkBtcWalletId = async () => {
+  if (blinkBtcWalletId) {
+    return blinkBtcWalletId;
+  }
+  const query = `
+    query Me {
+      me {
+        defaultAccount {
+          wallets {
+            id
+            walletCurrency
+          }
+        }
+      }
+    }
+  `;
+  const result = await blinkGraphqlRequest(query);
+  const wallets = result?.me?.defaultAccount?.wallets || [];
+  const btcWallet = wallets.find((wallet) => wallet.walletCurrency === "BTC");
+  if (!btcWallet?.id) {
+    throw new Error("Blink BTC 지갑을 찾지 못했습니다.");
+  }
+  blinkBtcWalletId = btcWallet.id;
+  return blinkBtcWalletId;
+};
+
+const createBlinkInvoice = async ({ sats, memo }) => {
+  const walletId = await getBlinkBtcWalletId();
+  const mutation = `
+    mutation LnInvoiceCreate($input: LnInvoiceCreateInput!) {
+      lnInvoiceCreate(input: $input) {
+        invoice {
+          paymentRequest
+          paymentHash
+          satoshis
+        }
+        errors {
+          message
+        }
+      }
+    }
+  `;
+  const variables = {
+    input: {
+      walletId,
+      amount: sats,
+      memo: memo || "공부 기부",
+    },
+  };
+  const result = await blinkGraphqlRequest(mutation, variables);
+  const payload = result?.lnInvoiceCreate;
+  if (payload?.errors?.length) {
+    throw new Error(payload.errors[0]?.message || "Blink 인보이스 생성 실패");
+  }
+  const invoice = normalizeInvoice(payload?.invoice?.paymentRequest);
+  if (!invoice || !isBolt11Invoice(invoice)) {
+    throw new Error("Blink 인보이스가 올바르지 않습니다.");
+  }
+  return invoice;
 };
 
 const oauthUrl = () => {
@@ -285,15 +406,49 @@ app.post("/api/donation-invoice", async (req, res) => {
     return;
   }
 
-  const addressParts = parseLightningAddress(effectiveBlinkAddress);
-  if (!addressParts) {
-    res
-      .status(400)
-      .json({ message: "Blink Lightning 주소 형식이 올바르지 않습니다." });
-    return;
-  }
+  const donationId = createDonationId();
 
   try {
+    if (BLINK_API_ENDPOINT && BLINK_API_KEY) {
+      const memo = buildDonationComment(
+        donationNote,
+        donationId,
+        120,
+        effectiveBlinkAddress
+      );
+      const invoice = await createBlinkInvoice({
+        sats: satsNumber,
+        memo,
+      });
+      pendingDonations.set(donationId, {
+        dataUrl,
+        plan,
+        studyTime,
+        goalRate,
+        minutes,
+        sats: satsNumber,
+        donationMode,
+        donationScope,
+        wordCount,
+        donationNote,
+        username,
+      });
+      pendingDonationsByInvoice.set(invoice, donationId);
+      setTimeout(() => {
+        pendingDonations.delete(donationId);
+        pendingDonationsByInvoice.delete(invoice);
+      }, 1000 * 60 * 30);
+      res.json({ invoice, donationId });
+      return;
+    }
+
+    const addressParts = parseLightningAddress(effectiveBlinkAddress);
+    if (!addressParts) {
+      res
+        .status(400)
+        .json({ message: "Blink Lightning 주소 형식이 올바르지 않습니다." });
+      return;
+    }
     const lnurlResponse = await fetch(
       `https://${addressParts.domain}/.well-known/lnurlp/${addressParts.name}`
     );
@@ -310,7 +465,6 @@ app.post("/api/donation-invoice", async (req, res) => {
     }
     const minSendable = Number(lnurlData?.minSendable || 0);
     const maxSendable = Number(lnurlData?.maxSendable || 0);
-    const donationId = createDonationId();
     const amountMsats = satsNumber * 1000;
     if (minSendable && amountMsats < minSendable) {
       res.status(400).json({
@@ -329,18 +483,14 @@ app.post("/api/donation-invoice", async (req, res) => {
       return;
     }
     const commentAllowed = Number(lnurlData?.commentAllowed || 0);
-    if (!commentAllowed && donationNote?.trim()) {
-      res.status(400).json({
-        message: "해당 LNURL 주소는 메모를 지원하지 않습니다. 메모를 비워주세요.",
-      });
-      return;
-    }
-    const comment = buildDonationComment(
-      donationNote,
-      donationId,
-      commentAllowed,
-      effectiveBlinkAddress
-    );
+    const comment = commentAllowed
+      ? buildDonationComment(
+          donationNote,
+          donationId,
+          commentAllowed,
+          effectiveBlinkAddress
+        )
+      : "";
     const callbackUrl = new URL(callback);
     callbackUrl.searchParams.set("amount", String(amountMsats));
     if (commentAllowed) {
@@ -354,11 +504,17 @@ app.post("/api/donation-invoice", async (req, res) => {
       return;
     }
     const invoiceData = await invoiceResponse.json();
-    const invoice = invoiceData?.pr || invoiceData?.paymentRequest;
+    if (invoiceData?.status === "ERROR") {
+      res.status(502).json({
+        message: invoiceData?.reason || "LNURL 콜백에서 오류가 반환되었습니다.",
+      });
+      return;
+    }
+    const invoice = normalizeInvoice(invoiceData?.pr || invoiceData?.paymentRequest);
     if (!invoice || !isBolt11Invoice(invoice)) {
-      res
-        .status(502)
-        .json({ message: "BOLT11 인보이스 생성에 실패했습니다. LNURL 응답을 확인해주세요." });
+      res.status(502).json({
+        message: "BOLT11 인보이스 생성에 실패했습니다. LNURL 응답을 확인해주세요.",
+      });
       return;
     }
 
@@ -375,8 +531,12 @@ app.post("/api/donation-invoice", async (req, res) => {
       donationNote,
       username,
     });
+    pendingDonationsByInvoice.set(invoice, donationId);
 
-    setTimeout(() => pendingDonations.delete(donationId), 1000 * 60 * 30);
+    setTimeout(() => {
+      pendingDonations.delete(donationId);
+      pendingDonationsByInvoice.delete(invoice);
+    }, 1000 * 60 * 30);
 
     res.json({ invoice, donationId });
   } catch (error) {
@@ -387,17 +547,33 @@ app.post("/api/donation-invoice", async (req, res) => {
 app.post("/api/blink/webhook", async (req, res) => {
   try {
     const eventType = req.body?.eventType;
-    const memo = req.body?.transaction?.memo || "";
+    const transaction = req.body?.transaction || {};
+    const memo = transaction.memo || "";
     if (!memo || !eventType || !eventType.startsWith("receive")) {
-      res.status(204).end();
-      return;
+      if (!eventType || !eventType.startsWith("receive")) {
+        res.status(204).end();
+        return;
+      }
     }
     const match = memo.match(/donation:([a-f0-9-]+)/i);
-    if (!match) {
+    let donationId = match ? match[1] : "";
+    if (!donationId) {
+      const invoiceCandidate = resolveInvoiceCandidate(
+        transaction.paymentRequest ||
+          transaction.payment_request ||
+          transaction.invoice ||
+          transaction.lnInvoice ||
+          transaction.ln_invoice ||
+          transaction
+      );
+      if (invoiceCandidate) {
+        donationId = pendingDonationsByInvoice.get(invoiceCandidate) || "";
+      }
+    }
+    if (!donationId) {
       res.status(204).end();
       return;
     }
-    const donationId = match[1];
     const payload = pendingDonations.get(donationId);
     if (!payload) {
       res.status(204).end();
@@ -405,6 +581,16 @@ app.post("/api/blink/webhook", async (req, res) => {
     }
     await sendDiscordShare(payload);
     pendingDonations.delete(donationId);
+    pendingDonationsByInvoice.delete(
+      resolveInvoiceCandidate(
+        transaction.paymentRequest ||
+          transaction.payment_request ||
+          transaction.invoice ||
+          transaction.lnInvoice ||
+          transaction.ln_invoice ||
+          transaction
+      )
+    );
     res.status(200).end();
   } catch (error) {
     res.status(200).end();
