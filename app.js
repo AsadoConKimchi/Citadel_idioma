@@ -55,6 +55,9 @@ const donationStatus = document.getElementById("donation-status");
 const donationHistory = document.getElementById("donation-history");
 const donationHistoryEmpty = document.getElementById("donation-history-empty");
 const donationPagination = document.getElementById("donation-pagination");
+const currentTotalSats = document.getElementById("current-total-sats");
+const donationPageTotal = document.getElementById("donation-page-total");
+const donationPagePay = document.getElementById("donation-page-pay");
 const walletModal = document.getElementById("wallet-modal");
 const walletModalClose = document.getElementById("wallet-modal-close");
 const walletStatus = document.getElementById("wallet-status");
@@ -73,6 +76,7 @@ let latestDonationPayload = null;
 let sessionPage = 1;
 let donationPage = 1;
 let donationHistoryPage = 1;
+const pendingDailyKey = "citadel-pending-daily";
 
 const donationControls = [
   donationScope,
@@ -141,6 +145,20 @@ const normalizeInvoice = (invoice) => {
 };
 
 const getLightningUri = (invoice) => `lightning:${normalizeInvoice(invoice)}`;
+
+const getPendingDaily = () => {
+  try {
+    const raw = localStorage.getItem(pendingDailyKey);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+};
+
+const savePendingDaily = (pending) => {
+  localStorage.setItem(pendingDailyKey, JSON.stringify(pending));
+};
 
 const updateTotals = () => {
   if (!totalTodayEl || !goalProgressEl) {
@@ -399,6 +417,34 @@ const finishSession = () => {
   const total = getStoredTotal() + elapsedSeconds;
   setStoredTotal(total);
   setLastSessionSeconds({ durationSeconds: elapsedSeconds, goalMinutes, plan, sessionId });
+  if (donationScope?.value === "daily") {
+    const pending = getPendingDaily();
+    const entry = pending[todayKey] || {
+      seconds: 0,
+      sats: 0,
+      count: 0,
+      plan: "",
+      goalMinutes: 0,
+      mode: donationMode?.value || "time",
+      note: "",
+    };
+    const rate = Number(satsRateInput.value || 0);
+    const count = Number(donationCountInput?.value || 0);
+    const sessionSats = calculateSats({
+      mode: donationMode?.value || "time",
+      rate,
+      seconds: elapsedSeconds,
+      count,
+    });
+    entry.seconds += elapsedSeconds;
+    entry.sats += sessionSats;
+    entry.count += donationMode?.value === "time" ? 0 : count;
+    entry.plan = plan || entry.plan;
+    entry.goalMinutes = goalMinutes || entry.goalMinutes;
+    entry.mode = donationMode?.value || entry.mode;
+    pending[todayKey] = entry;
+    savePendingDaily(pending);
+  }
   elapsedSeconds = 0;
   updateDisplay();
   updateTotals();
@@ -496,6 +542,16 @@ const getDonationSatsForScope = () => {
   });
 };
 
+const updateAccumulatedSats = () => {
+  const sats = getDonationSatsForScope();
+  if (currentTotalSats) {
+    currentTotalSats.textContent = `${sats} sats`;
+  }
+  if (donationPageTotal) {
+    donationPageTotal.textContent = `${sats} sats`;
+  }
+};
+
 const updateSats = () => {
   if (!satsTotalEl) {
     return;
@@ -510,6 +566,7 @@ const updateSats = () => {
     count,
   });
   satsTotalEl.textContent = `${sats} sats`;
+  updateAccumulatedSats();
 };
 
 const renderDonationHistory = () => {
@@ -557,6 +614,14 @@ const updateDonationTotals = () => {
   }
   const total = getDonationHistory().reduce((sum, item) => sum + (item.sats || 0), 0);
   satsTotalAllEl.textContent = `${total} sats`;
+  updateAccumulatedSats();
+};
+
+const donationModeLabels = {
+  time: "공부 시간",
+  pages: "페이지 수",
+  problems: "문제/단어 수",
+  other: "기타",
 };
 
 const donationModeLabels = {
@@ -658,44 +723,128 @@ const initializeTotals = () => {
   updateDonationModeUI();
 };
 
-const openLightningWallet = async () => {
-  const sats = getDonationSatsForScope();
-  if (sats <= 0) {
+const saveDonationHistoryEntry = ({
+  date,
+  sats,
+  minutes,
+  seconds,
+  mode,
+  scope,
+  sessionId = "",
+  count = 0,
+  note = "",
+}) => {
+  const history = getDonationHistory();
+  history.push({
+    date,
+    sats,
+    minutes,
+    seconds,
+    mode,
+    scope,
+    sessionId,
+    count,
+    note,
+  });
+  localStorage.setItem(donationHistoryKey, JSON.stringify(history));
+  updateDonationTotals();
+  renderDonationHistory();
+};
+
+const promptPendingDailyDonation = async () => {
+  const pending = getPendingDaily();
+  const dates = Object.keys(pending).sort();
+  const pendingDate = dates.find((date) => date < todayKey);
+  if (!pendingDate) {
+    return;
+  }
+  const entry = pending[pendingDate];
+  if (!entry || entry.sats <= 0) {
+    return;
+  }
+  const confirmDonation = window.confirm(
+    `${pendingDate} 누적 기부 ${entry.sats} sats가 있습니다. 지금 기부하고 공부를 시작할까요?`
+  );
+  if (!confirmDonation) {
+    return;
+  }
+  const sessionData = {
+    durationSeconds: entry.seconds || 0,
+    goalMinutes: entry.goalMinutes || Number(goalInput?.value || 0),
+    plan: entry.plan || `${pendingDate} 누적 학습`,
+  };
+  drawBadge(sessionData);
+  const payload = buildDonationPayload({
+    dataUrl: getBadgeDataUrl(),
+    plan: sessionData.plan,
+    durationSeconds: sessionData.durationSeconds,
+    goalMinutes: sessionData.goalMinutes,
+    sats: entry.sats,
+    donationModeValue: entry.mode || "time",
+    donationScopeValue: "daily",
+    count: entry.count || 0,
+    donationNoteValue: entry.note || "",
+  });
+  await openLightningWalletWithPayload(payload, {
+    onSuccess: () => {
+      saveDonationHistoryEntry({
+        date: pendingDate,
+        sats: entry.sats,
+        minutes: Math.floor((entry.seconds || 0) / 60),
+        seconds: entry.seconds || 0,
+        mode: entry.mode || "time",
+        scope: "daily",
+        count: entry.count || 0,
+        note: entry.note || "",
+      });
+      delete pending[pendingDate];
+      savePendingDaily(pending);
+    },
+  });
+};
+
+const buildDonationPayload = ({
+  dataUrl,
+  plan,
+  durationSeconds,
+  goalMinutes,
+  sats,
+  donationScopeValue,
+  donationModeValue,
+  count,
+  donationNoteValue,
+}) => {
+  const goalRate = goalMinutes
+    ? Math.min(100, (durationSeconds / 60 / goalMinutes) * 100).toFixed(1)
+    : "0.0";
+  return {
+    dataUrl,
+    plan: plan || "학습 목표 미입력",
+    studyTime: formatMinutesSeconds(durationSeconds || 0),
+    goalRate: `${goalRate}%`,
+    minutes: Math.floor((durationSeconds || 0) / 60),
+    sats,
+    donationMode: donationModeValue || "time",
+    donationScope: donationScopeValue || "total",
+    count,
+    wordCount: count,
+    donationNote: donationNoteValue || "",
+    username: loginUserName?.textContent || "",
+  };
+};
+
+const openLightningWalletWithPayload = async (payload, { onSuccess } = {}) => {
+  if (!payload?.sats || payload.sats <= 0) {
     alert("기부할 사토시 금액을 먼저 확인해주세요.");
     return;
   }
-  const dataUrl = getBadgeDataUrl();
-  if (!dataUrl || dataUrl === "data:,") {
+  if (!payload?.dataUrl || payload.dataUrl === "data:,") {
     alert("먼저 인증 카드를 생성해주세요.");
     return;
   }
   openWalletSelection({
     message: "인보이스를 생성하는 중입니다. 잠시만 기다려주세요.",
   });
-  const lastSession = getLastSessionSeconds();
-  const donationSeconds = getDonationSeconds();
-  const donationMinutes = Math.floor(donationSeconds / 60);
-  const payload = {
-    dataUrl,
-    plan: lastSession.plan || "학습 목표 미입력",
-    studyTime: formatMinutesSeconds(lastSession.durationSeconds || 0),
-    goalRate: `${
-      lastSession.goalMinutes
-        ? Math.min(
-            100,
-            (lastSession.durationSeconds / 60 / lastSession.goalMinutes) * 100
-          ).toFixed(1)
-        : "0.0"
-    }%`,
-    minutes: donationMinutes,
-    sats,
-    donationMode: donationMode?.value || "time",
-    donationScope: donationScope?.value || "total",
-    count: Number(donationCountInput?.value || 0),
-    wordCount: Number(donationCountInput?.value || 0),
-    donationNote: donationNote?.value?.trim() || "",
-    username: loginUserName?.textContent || "",
-  };
   latestDonationPayload = payload;
   try {
     const response = await fetch("/api/donation-invoice", {
@@ -725,6 +874,9 @@ const openLightningWallet = async () => {
       shareStatus.textContent =
         "지갑 앱을 열었습니다. 결제 완료 시 디스코드에 자동 공유됩니다.";
     }
+    if (onSuccess) {
+      onSuccess();
+    }
     openWalletSelection({
       invoice: normalizedInvoice,
       message: "원하는 지갑을 선택하면 결제가 이어집니다.",
@@ -741,6 +893,25 @@ const openLightningWallet = async () => {
     }
     setWalletOptionsEnabled(false);
   }
+};
+
+const openLightningWallet = async () => {
+  const sats = getDonationSatsForScope();
+  const dataUrl = getBadgeDataUrl();
+  const lastSession = getLastSessionSeconds();
+  const donationSeconds = getDonationSeconds();
+  const payload = buildDonationPayload({
+    dataUrl,
+    plan: lastSession.plan,
+    durationSeconds: donationSeconds,
+    goalMinutes: lastSession.goalMinutes,
+    sats,
+    donationModeValue: donationMode?.value || "time",
+    donationScopeValue: donationScope?.value || "total",
+    count: Number(donationCountInput?.value || 0),
+    donationNoteValue: donationNote?.value?.trim() || "",
+  });
+  await openLightningWalletWithPayload(payload);
 };
 
 const walletDeepLinks = {
@@ -917,6 +1088,41 @@ const applyStudyPlanValue = (value) => {
   if (studyPlanPreview) {
     studyPlanPreview.value = trimmed;
   }
+  if (studyPlanInput) {
+    studyPlanInput.value = trimmed;
+  }
+  if (studyPlanPreview) {
+    studyPlanPreview.value = trimmed;
+  }
+};
+
+const saveStudyPlan = () => {
+  if (!studyPlanInput) {
+    return;
+  }
+  applyStudyPlanValue(studyPlanInput.value);
+};
+
+const updateDonationModeUI = () => {
+  if (!donationMode || !donationCountField || !donationCountInput) {
+    return;
+  }
+  const mode = donationMode.value;
+  const isTime = mode === "time";
+  donationCountField.classList.toggle("hidden", isTime);
+  const label = donationCountField.querySelector("span");
+  const labelTextMap = {
+    pages: "오늘 공부한 페이지 수",
+    problems: "오늘 푼 문제(단어) 수",
+    other: "기타 기준 수량",
+  };
+  if (label) {
+    label.textContent = labelTextMap[mode] || "기준 수량";
+  }
+  if (isTime) {
+    donationCountInput.value = "0";
+  }
+  updateSats();
 };
 
 const saveStudyPlan = () => {
@@ -1155,7 +1361,7 @@ photoUpload?.addEventListener("change", (event) => {
   photoSource = photoPreview;
 });
 
-const drawBadge = () => {
+const drawBadge = (sessionOverride = null) => {
   const context = badgeCanvas.getContext("2d");
   context.clearRect(0, 0, badgeCanvas.width, badgeCanvas.height);
   context.fillStyle = "#0f172a";
@@ -1173,7 +1379,7 @@ const drawBadge = () => {
     context.drawImage(photoSource, x, y, width, height);
   }
 
-  const lastSession = getLastSessionSeconds();
+  const lastSession = sessionOverride || getLastSessionSeconds();
   const lastGoalRate = lastSession.goalMinutes
     ? Math.min(100, (lastSession.durationSeconds / 60 / lastSession.goalMinutes) * 100)
     : 0;
@@ -1255,10 +1461,9 @@ donateButton?.addEventListener("click", () => {
   const mode = donationMode?.value || "time";
   const sats = getDonationSatsForScope();
   const note = donationNote.value.trim();
-  const history = getDonationHistory();
   const lastSession = getLastSessionSeconds();
   const count = Number(donationCountInput?.value || 0);
-  history.push({
+  saveDonationHistoryEntry({
     date: todayKey,
     sats,
     minutes: totalMinutes,
@@ -1269,11 +1474,12 @@ donateButton?.addEventListener("click", () => {
     count,
     note,
   });
-  localStorage.setItem(donationHistoryKey, JSON.stringify(history));
   donationStatus.textContent = `오늘 ${sats} sats 기부 기록을 저장했습니다.`;
   donationPage = 1;
-  updateDonationTotals();
-  renderDonationHistory();
+});
+
+donationPagePay?.addEventListener("click", () => {
+  openLightningWallet();
 });
 
 window.addEventListener("beforeunload", () => {
@@ -1285,6 +1491,7 @@ loadStudyPlan();
 renderSessions();
 renderStudyHistoryPage();
 renderDonationHistoryPage();
+promptPendingDailyDonation();
 
 walletModalClose?.addEventListener("click", closeWalletSelection);
 walletModal?.addEventListener("click", (event) => {

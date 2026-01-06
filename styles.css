@@ -227,6 +227,17 @@ button.ghost {
   letter-spacing: 1px;
 }
 
+.timer-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.timer-note {
+  font-size: 13px;
+  color: #64748b;
+}
+
 .pill {
   background: #e2e8f0;
   color: #1f2937;
