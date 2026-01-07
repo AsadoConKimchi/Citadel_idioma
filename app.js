@@ -926,7 +926,7 @@ const walletDeepLinks = {
   strike: (invoice) =>
     `strike://pay?lightning=${encodeURIComponent(buildLightningUri(invoice))}`,
   zeus: (invoice) =>
-    `zeusln://pay?lightning=${encodeURIComponent(buildLightningUri(invoice))}`,
+    `zeusln://pay?lightning=${encodeURIComponent(invoice)}`,
 };
 
 const openWalletDeepLink = (deepLink) => {
