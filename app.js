@@ -591,7 +591,7 @@ const renderDonationHistory = () => {
   pagedHistory.forEach((item) => {
     const entry = document.createElement("div");
     entry.className = "history-item";
-    const scopeLabels = { session: "회차 별", daily: "하루 단위", total: "누적 후 한번" };
+    const scopeLabels = { session: "회차 별", daily: "하루 단위", total: "누적 후 한번에" };
     const scopeLabel = scopeLabels[item.scope] || "누적";
     const modeLabel = donationModeLabels[item.mode] || "공부 시간";
     const countLabel = item.mode === "time" ? "" : ` · 기준 수량 ${item.count || 0}`;
@@ -679,7 +679,7 @@ const renderDonationHistoryPage = () => {
     pagedHistory.forEach((item) => {
       const entry = document.createElement("div");
       entry.className = "history-item";
-      const scopeLabels = { session: "회차 별", daily: "하루 단위", total: "누적 후 한번" };
+      const scopeLabels = { session: "회차 별", daily: "하루 단위", total: "누적 후 한번에" };
       const scopeLabel = scopeLabels[item.scope] || "누적";
       const modeLabel = donationModeLabels[item.mode] || "공부 시간";
       const countLabel = item.mode === "time" ? "" : ` · 기준 수량 ${item.count || 0}`;
@@ -1057,11 +1057,8 @@ const applyStudyPlanValue = (value) => {
       planStatus.textContent = "학습 목표는 자동 저장됩니다.";
     }
   }
-  if (studyPlanInput) {
-    studyPlanInput.value = trimmed;
-  }
   if (studyPlanPreview) {
-    studyPlanPreview.value = trimmed;
+    studyPlanPreview.value = value;
   }
 };
 
@@ -1080,14 +1077,24 @@ const updateDonationModeUI = () => {
   const isTime = mode === "time";
   donationCountField.classList.toggle("hidden", isTime);
   const label = donationCountField.querySelector("span");
+  const unitInput = donationCountField.querySelector(".unit-input");
   const labelTextMap = {
     pages: "오늘 공부한 페이지 수",
     problems: "오늘 푼 문제(단어) 수",
     other: "기타 기준 수량",
   };
+  const unitTextMap = {
+    pages: "페이지",
+    problems: "문제",
+    other: "개",
+  };
   if (label) {
     label.textContent = labelTextMap[mode] || "기준 수량";
   }
+  if (unitInput) {
+    unitInput.dataset.unit = unitTextMap[mode] || "";
+  }
+  donationCountInput.placeholder = "예) 5";
   if (isTime) {
     donationCountInput.value = "0";
   }

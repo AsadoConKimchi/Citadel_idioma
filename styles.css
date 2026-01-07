@@ -81,7 +81,7 @@ h1 {
 
 .hero-brand-title {
   margin: 0 0 8px;
-  font-size: clamp(28px, 4vw, 40px);
+  font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.08em;
 }
@@ -191,6 +191,31 @@ input:not([type]) {
   border-radius: 10px;
   border: 1px solid #d1d5db;
   font-size: 14px;
+}
+
+.unit-input {
+  position: relative;
+  display: block;
+}
+
+.unit-input input {
+  padding-right: 56px;
+}
+
+.unit-input::after {
+  content: attr(data-unit);
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.unit-input input::placeholder {
+  color: #94a3b8;
 }
 
 textarea {
