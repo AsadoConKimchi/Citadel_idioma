@@ -89,24 +89,8 @@
                 placeholder="예) 10sats"
               />
             </label>
-            <div class="row donation-summary">
-              <span class="pill">
-                현재까지 적립금액 : <strong id="sats-total">0 sats</strong>
-              </span>
-              <span class="pill">누적 기부금액 : <strong id="sats-total-all">0 sats</strong></span>
-            </div>
             <div class="row">
               <button id="start" class="primary">시작</button>
-            </div>
-            <div class="session-list">
-              <p class="session-title">오늘 POW 기록</p>
-              <div id="session-list" class="session-items"></div>
-              <p id="session-empty" class="hint">아직 저장된 POW 기록이 없습니다.</p>
-              <div id="session-pagination" class="pagination"></div>
-            </div>
-            <div class="row">
-              <span class="pill">오늘 누적: <strong id="total-today">00:00:00</strong></span>
-              <span class="pill">누계 목표 달성률: <strong id="goal-progress">0%</strong></span>
             </div>
           </div>
         </div>
@@ -161,18 +145,32 @@
           </div>
         </div>
 
-        <div class="card">
-          <h2>기부 기록</h2>
-          <p class="muted">저장된 기부 기록을 확인할 수 있습니다.</p>
+        <div class="card" id="today-donation-summary">
+          <h2>오늘 기부 현황</h2>
+          <p class="muted">선택한 기부 방식에 따라 누적 금액과 적립액을 확인하세요.</p>
           <div class="stack">
-            <div id="donation-history" class="history-list"></div>
-            <p id="donation-history-empty" class="hint">아직 저장된 기부 기록이 없습니다.</p>
-            <div id="donation-pagination" class="pagination"></div>
+            <div class="row">
+              <span class="pill">
+                지금까지 누적 기부 금액: <strong id="today-total-donated">0 sats</strong>
+              </span>
+            </div>
+            <div class="row hidden" id="today-accumulated-row">
+              <span class="pill">
+                지급까지 적립액: <strong id="today-accumulated-sats">0 sats</strong>
+              </span>
+            </div>
+            <button id="today-accumulated-pay" class="primary hidden">적립액 기부하기</button>
+            <p class="hint" id="today-donation-hint">
+              누적 후 한번에 기부를 선택하면 적립액을 한 번에 기부할 수 있습니다.
+            </p>
           </div>
         </div>
       </section>
     </main>
-    <div id="accumulation-toast" class="toast hidden" role="status" aria-live="polite"></div>
+    <div id="accumulation-toast" class="toast hidden" role="status" aria-live="polite">
+      <span id="accumulation-toast-message"></span>
+      <button class="toast-close" type="button" aria-label="닫기">✕</button>
+    </div>
 
     <footer>
       <p>Citadel Scholarship · POW 기록이 장학금으로 이어집니다.</p>
