@@ -79,6 +79,8 @@ let timerInterval = null;
 let elapsedSeconds = 0;
 let isRunning = false;
 let isResetReady = false;
+let timerStartTime = null;
+let elapsedOffsetSeconds = 0;
 let photoSource = null;
 let mediaPreviewUrl = null;
 let selectedVideoDataUrl = null;
@@ -285,8 +287,17 @@ const closeTimerModal = () => {
   document.documentElement.classList.remove("timer-modal-open");
 };
 
-const tick = () => {
-  elapsedSeconds += 1;
+const syncElapsedTime = () => {
+  if (!isRunning || timerStartTime === null) {
+    return;
+  }
+  const now = Date.now();
+  const nextElapsed =
+    elapsedOffsetSeconds + Math.floor((now - timerStartTime) / 1000);
+  if (nextElapsed === elapsedSeconds) {
+    return;
+  }
+  elapsedSeconds = nextElapsed;
   updateDisplay();
   updateSats();
   if (elapsedSeconds % 30 === 0) {
@@ -298,11 +309,17 @@ const tick = () => {
   }
 };
 
+const tick = () => {
+  syncElapsedTime();
+};
+
 const startTimer = () => {
   if (isRunning) {
     return;
   }
   isRunning = true;
+  timerStartTime = Date.now();
+  elapsedOffsetSeconds = elapsedSeconds;
   timerInterval = setInterval(tick, 1000);
   setDonationControlsEnabled(false);
   setPauseButtonLabel("일시정지");
@@ -314,14 +331,19 @@ const pauseTimer = () => {
   if (!isRunning) {
     return;
   }
+  syncElapsedTime();
   isRunning = false;
   clearInterval(timerInterval);
+  timerStartTime = null;
+  elapsedOffsetSeconds = elapsedSeconds;
   setPauseButtonLabel("재개");
 };
 
 const resetTimer = () => {
   pauseTimer();
   elapsedSeconds = 0;
+  elapsedOffsetSeconds = 0;
+  timerStartTime = null;
   updateDisplay();
   updateSats();
   setDonationControlsEnabled(true);
@@ -1813,7 +1835,7 @@ const drawBadge = (sessionOverride = null) => {
   const lastGoalRate = lastSession.goalMinutes
     ? Math.min(100, (lastSession.durationSeconds / 60 / lastSession.goalMinutes) * 100)
     : 0;
-  const overlayHeight = 340;
+  const overlayHeight = 380;
 
   context.fillStyle = "rgba(15, 23, 42, 0.65)";
   context.fillRect(0, badgeCanvas.height - overlayHeight, badgeCanvas.width, overlayHeight);
@@ -1826,14 +1848,22 @@ const drawBadge = (sessionOverride = null) => {
   const plan = lastSession.plan || "목표 미입력";
   context.fillText(`목표: ${plan}`, 60, badgeCanvas.height - overlayHeight + 150);
 
+  context.font = "32px sans-serif";
+  const modeLabel = donationModeLabels[donationMode?.value] || "POW";
+  context.fillText(
+    `POW 분야: ${modeLabel}`,
+    60,
+    badgeCanvas.height - overlayHeight + 200
+  );
+
   context.font = "28px sans-serif";
   const studyTimeLabel = formatMinutesSeconds(lastSession.durationSeconds || 0);
-  context.fillText(`POW Time: ${studyTimeLabel}`, 60, badgeCanvas.height - overlayHeight + 205);
+  context.fillText(`POW Time: ${studyTimeLabel}`, 60, badgeCanvas.height - overlayHeight + 245);
 
   context.fillText(
     `Goal Rate: ${lastGoalRate.toFixed(1)}%`,
     60,
-    badgeCanvas.height - overlayHeight + 245
+    badgeCanvas.height - overlayHeight + 285
   );
 
   const scopeValue = donationScope?.value || "session";
@@ -1842,7 +1872,7 @@ const drawBadge = (sessionOverride = null) => {
     scopeValue === "total"
       ? `현재 적립금액 : ${badgeSats}sats`
       : `POW Donation : ${badgeSats}sats`;
-  context.fillText(badgeSatsLabel, 60, badgeCanvas.height - overlayHeight + 285);
+  context.fillText(badgeSatsLabel, 60, badgeCanvas.height - overlayHeight + 325);
 
   context.font = "24px sans-serif";
   const date = new Date().toLocaleDateString("ko-KR", {
@@ -1976,6 +2006,12 @@ donationPagePay?.addEventListener("click", () => {
 
 window.addEventListener("beforeunload", () => {
   pauseTimer();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    syncElapsedTime();
+  }
 });
 
 initializeTotals();
