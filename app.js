@@ -20,6 +20,8 @@ const startButton = document.getElementById("start");
 const pauseButton = document.getElementById("pause");
 const resetButton = document.getElementById("reset");
 
+const timerModal = document.getElementById("timer-modal");
+
 const discordAppLogin = document.getElementById("discord-app-login");
 const discordWebLogin = document.getElementById("discord-web-login");
 const discordRefresh = document.getElementById("discord-refresh");
@@ -29,7 +31,6 @@ const discordLogout = document.getElementById("discord-logout");
 const mainContent = document.querySelector("main");
 const discordProfile = document.getElementById("discord-profile");
 const discordAvatar = document.getElementById("discord-avatar");
-const discordBanner = document.getElementById("discord-banner");
 const discordUsername = document.getElementById("discord-username");
 const discordGuild = document.getElementById("discord-guild");
 const allowedServer = document.getElementById("allowed-server");
@@ -48,6 +49,7 @@ const snapshotCanvas = document.getElementById("snapshot");
 const photoPreview = document.getElementById("photo-preview");
 const badgeCanvas = document.getElementById("badge");
 const downloadLink = document.getElementById("download");
+const studyCard = document.getElementById("study-card");
 
 const donationNote = document.getElementById("donation-note");
 const donateButton = document.getElementById("donate");
@@ -70,6 +72,7 @@ const donationHistoryPagination = document.getElementById("donation-history-pagi
 let timerInterval = null;
 let elapsedSeconds = 0;
 let isRunning = false;
+let isResetReady = false;
 let cameraStream = null;
 let photoSource = null;
 let latestDonationPayload = null;
@@ -182,6 +185,38 @@ const updateDisplay = () => {
   timerDisplay.textContent = formatTime(elapsedSeconds);
 };
 
+const setPauseButtonLabel = (label) => {
+  if (!pauseButton) {
+    return;
+  }
+  pauseButton.textContent = label;
+};
+
+const setResetButtonLabel = (label) => {
+  if (!resetButton) {
+    return;
+  }
+  resetButton.textContent = label;
+};
+
+const openTimerModal = () => {
+  if (!timerModal) {
+    return;
+  }
+  timerModal.classList.remove("hidden");
+  timerModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("timer-modal-open");
+};
+
+const closeTimerModal = () => {
+  if (!timerModal) {
+    return;
+  }
+  timerModal.classList.add("hidden");
+  timerModal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("timer-modal-open");
+};
+
 const tick = () => {
   elapsedSeconds += 1;
   updateDisplay();
@@ -202,6 +237,9 @@ const startTimer = () => {
   isRunning = true;
   timerInterval = setInterval(tick, 1000);
   setDonationControlsEnabled(false);
+  setPauseButtonLabel("일시정지");
+  setResetButtonLabel("리셋");
+  isResetReady = false;
 };
 
 const pauseTimer = () => {
@@ -210,6 +248,7 @@ const pauseTimer = () => {
   }
   isRunning = false;
   clearInterval(timerInterval);
+  setPauseButtonLabel("재개");
 };
 
 const resetTimer = () => {
@@ -218,6 +257,7 @@ const resetTimer = () => {
   updateDisplay();
   updateSats();
   setDonationControlsEnabled(true);
+  setPauseButtonLabel("일시정지");
 };
 
 const getPlanValue = () => {
@@ -462,6 +502,12 @@ const finishSession = () => {
     drawBadge();
   }
   setDonationControlsEnabled(true);
+  closeTimerModal();
+  setResetButtonLabel("리셋");
+  isResetReady = false;
+  if (studyCard) {
+    studyCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
   openCameraButton?.focus();
 };
 
@@ -1108,9 +1154,6 @@ const updateDiscordProfile = ({ user, guild, authorized }) => {
   const avatarUrl = user?.avatar
     ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`
     : "https://cdn.discordapp.com/embed/avatars/0.png";
-  const bannerUrl = user?.banner
-    ? `https://cdn.discordapp.com/banners/${user.id}/${user.banner}.png?size=480`
-    : "";
   discordAvatar.src = avatarUrl;
   discordAvatar.alt = user?.username ? `${user.username} avatar` : "Discord avatar";
   discordAvatar.classList.remove("status-ok", "status-pending");
@@ -1119,8 +1162,6 @@ const updateDiscordProfile = ({ user, guild, authorized }) => {
   } else if (authorized === false) {
     discordAvatar.classList.add("status-pending");
   }
-  discordBanner.style.backgroundImage = bannerUrl ? `url(${bannerUrl})` : "";
-  discordBanner.style.backgroundSize = "cover";
   discordUsername.textContent = user?.username ?? "로그인된 사용자 없음";
   if (discordGuild) {
     const guildName = guild?.name ?? "-";
@@ -1289,9 +1330,26 @@ discordLogout?.addEventListener("click", async () => {
   window.location.reload();
 });
 
-startButton?.addEventListener("click", startTimer);
-pauseButton?.addEventListener("click", pauseTimer);
-resetButton?.addEventListener("click", resetTimer);
+startButton?.addEventListener("click", () => {
+  openTimerModal();
+  startTimer();
+});
+pauseButton?.addEventListener("click", () => {
+  if (isRunning) {
+    pauseTimer();
+  } else if (elapsedSeconds > 0) {
+    startTimer();
+  }
+});
+resetButton?.addEventListener("click", () => {
+  if (isResetReady) {
+    startTimer();
+    return;
+  }
+  resetTimer();
+  setResetButtonLabel("재시작");
+  isResetReady = true;
+});
 finishButton?.addEventListener("click", finishSession);
 goalInput?.addEventListener("input", updateTotals);
 if (donationMode) {
