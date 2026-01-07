@@ -886,6 +886,7 @@ app.post("/api/share", async (req, res) => {
     donationNote,
     videoDataUrl,
     videoFilename,
+    shareContext,
   } = req.body || {};
   if (!dataUrl) {
     res.status(400).json({ message: "공유할 이미지가 없습니다." });
@@ -925,7 +926,7 @@ app.post("/api/share", async (req, res) => {
       discordUserId,
       videoDataUrl,
       videoFilename,
-      shareContext: "share",
+      shareContext: shareContext === "payment" ? "payment" : "share",
     });
 
     res.json({ message: "디스코드 공유를 완료했습니다." });
