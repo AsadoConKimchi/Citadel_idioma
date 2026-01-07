@@ -180,6 +180,20 @@ main {
   white-space: nowrap;
 }
 
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  color: #f8fafc;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 20;
+}
+
 .status-row {
   justify-content: space-between;
 }

@@ -70,20 +70,14 @@
               </select>
             </label>
             <label>
-              기부 그룹 선택
+              POW 분야 선택
               <select id="donation-mode">
-                <option value="bitcoin-social-layer">Bitcoin Social Layer</option>
-                <option value="corn-gang">Corn Gang</option>
-                <option value="palma-guild">Palma Guild</option>
-                <option value="sea-of-corea">Sea of Corea</option>
-                <option value="creative-crew">Creative Crew</option>
-                <option value="satoshi-studio">Satoshi Studio</option>
-                <option value="citadel-entertainment">Citadel Entertainment</option>
-                <option value="genesis-block">Genesis Block</option>
-                <option value="citadel-force">Citadel Force</option>
-                <option value="holy-seed">Holy Seed</option>
-                <option value="language-study">언어공부</option>
-                <option value="bitcoin-global-channel">Bitcoin Global Channel</option>
+                <option value="pow-writing">✒️글쓰기📝</option>
+                <option value="pow-reading">🪽 독서📚</option>
+                <option value="pow-study">💻공부💯</option>
+                <option value="pow-music">🎼음악🎵</option>
+                <option value="pow-art">🎨그림🖼️</option>
+                <option value="pow-service">✝️봉사⛪</option>
               </select>
             </label>
             <label>
@@ -97,7 +91,7 @@
             </label>
             <div class="row donation-summary">
               <span class="pill">
-                이번 회차 기부금액 : <strong id="sats-total">0 sats</strong>
+                현재까지 적립금액 : <strong id="sats-total">0 sats</strong>
               </span>
               <span class="pill">누적 기부금액 : <strong id="sats-total-all">0 sats</strong></span>
             </div>
@@ -178,6 +172,7 @@
         </div>
       </section>
     </main>
+    <div id="accumulation-toast" class="toast hidden" role="status" aria-live="polite"></div>
 
     <footer>
       <p>Citadel Scholarship · POW 기록이 장학금으로 이어집니다.</p>

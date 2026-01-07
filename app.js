@@ -66,6 +66,7 @@ const walletInvoice = document.getElementById("wallet-invoice");
 const walletInvoiceQr = document.getElementById("wallet-invoice-qr");
 const walletToast = document.getElementById("wallet-toast");
 const donationHistoryPagination = document.getElementById("donation-history-pagination");
+const accumulationToast = document.getElementById("accumulation-toast");
 
 let timerInterval = null;
 let elapsedSeconds = 0;
@@ -82,6 +83,7 @@ let donationHistoryPage = 1;
 const pendingDailyKey = "citadel-pending-daily";
 let hasPromptedDaily = false;
 let walletToastTimeout = null;
+let accumulationToastTimeout = null;
 
 const donationControls = [
   donationScope,
@@ -95,6 +97,20 @@ const setDonationControlsEnabled = (enabled) => {
       control.disabled = !enabled;
     }
   });
+};
+
+const showAccumulationToast = (message) => {
+  if (!accumulationToast) {
+    return;
+  }
+  accumulationToast.textContent = message;
+  accumulationToast.classList.remove("hidden");
+  if (accumulationToastTimeout) {
+    clearTimeout(accumulationToastTimeout);
+  }
+  accumulationToastTimeout = setTimeout(() => {
+    accumulationToast.classList.add("hidden");
+  }, 2000);
 };
 
 const getTodayKey = () => new Date().toISOString().slice(0, 10);
@@ -498,7 +514,7 @@ const finishSession = () => {
       sats: 0,
       plan: "",
       goalMinutes: 0,
-      mode: donationMode?.value || "bitcoin-social-layer",
+      mode: donationMode?.value || "pow-writing",
       note: "",
     };
     const rate = parseSatsRate(satsRateInput?.value);
@@ -514,13 +530,23 @@ const finishSession = () => {
     pending[todayKey] = entry;
     savePendingDaily(pending);
   }
+  if (donationScope?.value === "total") {
+    const rate = parseSatsRate(satsRateInput?.value);
+    const sessionSats = calculateSats({
+      rate,
+      seconds: elapsedSeconds,
+    });
+    showAccumulationToast(
+      `기부금 * 달성률을 곱해서 ${sessionSats} sats가 적립되었습니다.`
+    );
+  }
   elapsedSeconds = 0;
   updateDisplay();
   updateTotals();
   renderSessions();
   finishButton.textContent = "인증 카드 만들기 완료!";
   setTimeout(() => {
-  finishButton.textContent = "POW 종료";
+    finishButton.textContent = "POW 종료";
   }, 2000);
   if (photoSource) {
     drawBadge();
@@ -680,7 +706,7 @@ const renderDonationHistory = () => {
     entry.className = "history-item";
     const scopeLabels = { session: "회차 별", daily: "하루 단위", total: "누적 후 한번에" };
     const scopeLabel = scopeLabels[item.scope] || "누적";
-    const modeLabel = donationModeLabels[item.mode] || "Bitcoin Social Layer";
+  const modeLabel = donationModeLabels[item.mode] || "✒️글쓰기📝";
     entry.innerHTML = `
       <div><strong>${item.date}</strong> · ${scopeLabel} · ${modeLabel}</div>
       <div>기부: <strong>${item.sats} sats</strong> · ${item.minutes}분</div>
@@ -709,18 +735,12 @@ const updateDonationTotals = () => {
 };
 
 const donationModeLabels = {
-  "bitcoin-social-layer": "Bitcoin Social Layer",
-  "corn-gang": "Corn Gang",
-  "palma-guild": "Palma Guild",
-  "sea-of-corea": "Sea of Corea",
-  "creative-crew": "Creative Crew",
-  "satoshi-studio": "Satoshi Studio",
-  "citadel-entertainment": "Citadel Entertainment",
-  "genesis-block": "Genesis Block",
-  "citadel-force": "Citadel Force",
-  "holy-seed": "Holy Seed",
-  "language-study": "언어공부",
-  "bitcoin-global-channel": "Bitcoin Global Channel",
+  "pow-writing": "✒️글쓰기📝",
+  "pow-reading": "🪽 독서📚",
+  "pow-study": "💻공부💯",
+  "pow-music": "🎼음악🎵",
+  "pow-art": "🎨그림🖼️",
+  "pow-service": "✝️봉사⛪",
 };
 
 const getDonationHistoryMonths = () => {
@@ -789,7 +809,7 @@ const renderDonationHistoryPage = () => {
       entry.className = "history-item";
       const scopeLabels = { session: "회차 별", daily: "하루 단위", total: "누적 후 한번에" };
       const scopeLabel = scopeLabels[item.scope] || "누적";
-      const modeLabel = donationModeLabels[item.mode] || "Bitcoin Social Layer";
+      const modeLabel = donationModeLabels[item.mode] || "✒️글쓰기📝";
       entry.innerHTML = `
         <div><strong>${item.date}</strong> · ${scopeLabel} · ${modeLabel}</div>
         <div>기부: <strong>${item.sats} sats</strong> · ${item.minutes}분</div>
@@ -886,7 +906,7 @@ const promptPendingDailyDonation = async () => {
     durationSeconds: sessionData.durationSeconds,
     goalMinutes: sessionData.goalMinutes,
     sats: entry.sats,
-    donationModeValue: entry.mode || "bitcoin-social-layer",
+    donationModeValue: entry.mode || "pow-writing",
     donationScopeValue: "daily",
     donationNoteValue: entry.note || "",
   });
@@ -897,7 +917,7 @@ const promptPendingDailyDonation = async () => {
         sats: entry.sats,
         minutes: Math.floor((entry.seconds || 0) / 60),
         seconds: entry.seconds || 0,
-        mode: entry.mode || "bitcoin-social-layer",
+        mode: entry.mode || "pow-writing",
         scope: "daily",
         note: entry.note || "",
       });
@@ -927,7 +947,7 @@ const buildDonationPayload = ({
     goalRate: `${goalRate}%`,
     minutes: Math.floor((durationSeconds || 0) / 60),
     sats,
-    donationMode: donationModeValue || "bitcoin-social-layer",
+    donationMode: donationModeValue || "pow-writing",
     donationScope: donationScopeValue || "total",
     donationNote: donationNoteValue || "",
     username: loginUserName?.textContent || "",
@@ -1009,7 +1029,7 @@ const openLightningWallet = async () => {
     durationSeconds: donationSeconds,
     goalMinutes: lastSession.goalMinutes,
     sats,
-    donationModeValue: donationMode?.value || "bitcoin-social-layer",
+    donationModeValue: donationMode?.value || "pow-writing",
     donationScopeValue: donationScope?.value || "total",
     donationNoteValue: donationNote?.value?.trim() || "",
   });
@@ -1591,7 +1611,7 @@ shareDiscordButton?.addEventListener("click", shareToDiscord);
 donateButton?.addEventListener("click", () => {
   const donationSeconds = getDonationSeconds();
   const totalMinutes = Math.floor(donationSeconds / 60);
-  const mode = donationMode?.value || "bitcoin-social-layer";
+  const mode = donationMode?.value || "pow-writing";
   const sats = getDonationSatsForScope();
   const note = donationNote.value.trim();
   const lastSession = getLastSessionSeconds();
