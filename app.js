@@ -63,8 +63,8 @@ const walletModalClose = document.getElementById("wallet-modal-close");
 const walletStatus = document.getElementById("wallet-status");
 const walletOptions = document.querySelectorAll(".wallet-option");
 const walletInvoice = document.getElementById("wallet-invoice");
-const walletInvoiceCopy = document.getElementById("wallet-invoice-copy");
 const walletInvoiceQr = document.getElementById("wallet-invoice-qr");
+const walletToast = document.getElementById("wallet-toast");
 const donationHistoryPagination = document.getElementById("donation-history-pagination");
 
 let timerInterval = null;
@@ -78,6 +78,7 @@ let donationPage = 1;
 let donationHistoryPage = 1;
 const pendingDailyKey = "citadel-pending-daily";
 let hasPromptedDaily = false;
+let walletToastTimeout = null;
 
 const donationControls = [
   donationScope,
@@ -921,13 +922,11 @@ const walletDeepLinks = {
     `walletofsatoshi://pay?lightning=${encodeURIComponent(
       buildLightningUri(invoice)
     )}`,
-  speed: (invoice) =>
-    `speed://pay?lightning=${encodeURIComponent(buildLightningUri(invoice))}`,
   blink: (invoice) => buildLightningUri(invoice),
   strike: (invoice) =>
     `strike://pay?lightning=${encodeURIComponent(buildLightningUri(invoice))}`,
   zeus: (invoice) =>
-    `zeus://pay?lightning=${encodeURIComponent(buildLightningUri(invoice))}`,
+    `zeusln://pay?lightning=${encodeURIComponent(buildLightningUri(invoice))}`,
 };
 
 const openWalletDeepLink = (deepLink) => {
@@ -938,9 +937,20 @@ const setWalletOptionsEnabled = (enabled) => {
   walletOptions.forEach((option) => {
     option.disabled = !enabled;
   });
-  if (walletInvoiceCopy) {
-    walletInvoiceCopy.disabled = !enabled;
+};
+
+const showWalletToast = (message) => {
+  if (!walletToast) {
+    return;
   }
+  walletToast.textContent = message;
+  walletToast.classList.remove("hidden");
+  if (walletToastTimeout) {
+    clearTimeout(walletToastTimeout);
+  }
+  walletToastTimeout = setTimeout(() => {
+    walletToast.classList.add("hidden");
+  }, 1000);
 };
 
 const renderWalletInvoice = (invoice) => {
@@ -980,6 +990,9 @@ const openWalletSelection = ({ invoice, message } = {}) => {
   }
   renderWalletInvoice(invoice);
   setWalletOptionsEnabled(Boolean(invoice));
+  if (walletToast) {
+    walletToast.classList.add("hidden");
+  }
 };
 
 const closeWalletSelection = () => {
@@ -994,6 +1007,9 @@ const closeWalletSelection = () => {
   }
   renderWalletInvoice("");
   setWalletOptionsEnabled(true);
+  if (walletToast) {
+    walletToast.classList.add("hidden");
+  }
 };
 
 const launchWallet = async (walletKey) => {
@@ -1443,9 +1459,7 @@ const copyWalletInvoice = async () => {
   }
   try {
     await navigator.clipboard.writeText(invoice);
-    if (walletStatus) {
-      walletStatus.textContent = "인보이스를 복사했습니다.";
-    }
+    showWalletToast("인보이스가 복사되었습니다.");
   } catch (error) {
     if (walletStatus) {
       walletStatus.textContent = "인보이스 복사에 실패했습니다.";
@@ -1453,7 +1467,6 @@ const copyWalletInvoice = async () => {
   }
 };
 
-walletInvoiceCopy?.addEventListener("click", copyWalletInvoice);
 walletInvoiceQr?.addEventListener("click", copyWalletInvoice);
 
 document.addEventListener("click", (event) => {
