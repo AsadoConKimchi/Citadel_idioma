@@ -27,13 +27,20 @@ const {
   PORT = 3000,
 } = process.env;
 
+const discordClientId = (DISCORD_CLIENT_ID || "").trim();
+const discordClientSecret = (DISCORD_CLIENT_SECRET || "").trim();
+const discordRedirectUri = (DISCORD_REDIRECT_URI || "").trim();
+
+const isDiscordClientIdValid = (value) => /^\d{17,20}$/.test(String(value || "").trim());
+
 const DEFAULT_BLINK_ADDRESS = "becadecitadel@blink.sv";
 const effectiveBlinkAddress = BLINK_LIGHTNING_ADDRESS || DEFAULT_BLINK_ADDRESS;
 
 const hasDiscordConfig =
-  DISCORD_CLIENT_ID &&
-  DISCORD_CLIENT_SECRET &&
-  DISCORD_REDIRECT_URI &&
+  discordClientId &&
+  discordClientSecret &&
+  discordRedirectUri &&
+  isDiscordClientIdValid(discordClientId) &&
   DISCORD_GUILD_ID &&
   DISCORD_ROLE_ID;
 
@@ -371,8 +378,8 @@ const createBlinkInvoice = async ({ sats, memo }) => {
 
 const oauthUrl = () => {
   const params = new URLSearchParams({
-    client_id: DISCORD_CLIENT_ID,
-    redirect_uri: DISCORD_REDIRECT_URI,
+    client_id: discordClientId,
+    redirect_uri: discordRedirectUri,
     response_type: "code",
     scope: "identify guilds.members.read",
   });
@@ -381,8 +388,8 @@ const oauthUrl = () => {
 
 const oauthAppUrl = () => {
   const params = new URLSearchParams({
-    client_id: DISCORD_CLIENT_ID,
-    redirect_uri: DISCORD_REDIRECT_URI,
+    client_id: discordClientId,
+    redirect_uri: discordRedirectUri,
     response_type: "code",
     scope: "identify guilds.members.read",
     prompt: "consent",
@@ -392,11 +399,11 @@ const oauthAppUrl = () => {
 
 const exchangeCode = async (code) => {
   const body = new URLSearchParams({
-    client_id: DISCORD_CLIENT_ID,
-    client_secret: DISCORD_CLIENT_SECRET,
+    client_id: discordClientId,
+    client_secret: discordClientSecret,
     grant_type: "authorization_code",
     code,
-    redirect_uri: DISCORD_REDIRECT_URI,
+    redirect_uri: discordRedirectUri,
   });
 
   const response = await fetch("https://discord.com/api/oauth2/token", {
@@ -426,7 +433,10 @@ const fetchDiscord = async (url, accessToken) => {
 
 app.get("/auth/discord", (req, res) => {
   if (!hasDiscordConfig) {
-    res.status(500).send("Discord 환경 변수가 설정되지 않았습니다.");
+    const message = !isDiscordClientIdValid(discordClientId)
+      ? "Discord 환경 변수의 Client ID가 올바르지 않습니다."
+      : "Discord 환경 변수가 설정되지 않았습니다.";
+    res.status(500).send(message);
     return;
   }
   res.redirect(oauthUrl());
@@ -434,7 +444,10 @@ app.get("/auth/discord", (req, res) => {
 
 app.get("/auth/discord/web", (req, res) => {
   if (!hasDiscordConfig) {
-    res.status(500).send("Discord 환경 변수가 설정되지 않았습니다.");
+    const message = !isDiscordClientIdValid(discordClientId)
+      ? "Discord 환경 변수의 Client ID가 올바르지 않습니다."
+      : "Discord 환경 변수가 설정되지 않았습니다.";
+    res.status(500).send(message);
     return;
   }
   res.redirect(oauthUrl());
@@ -442,7 +455,10 @@ app.get("/auth/discord/web", (req, res) => {
 
 app.get("/auth/discord/app", (req, res) => {
   if (!hasDiscordConfig) {
-    res.status(500).send("Discord 환경 변수가 설정되지 않았습니다.");
+    const message = !isDiscordClientIdValid(discordClientId)
+      ? "Discord 환경 변수의 Client ID가 올바르지 않습니다."
+      : "Discord 환경 변수가 설정되지 않았습니다.";
+    res.status(500).send(message);
     return;
   }
   const appUrl = oauthAppUrl();
