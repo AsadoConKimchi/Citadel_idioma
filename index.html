@@ -124,9 +124,16 @@
             <div class="row">
               <button id="open-camera">카메라 열기</button>
               <label class="file">
-                사진 업로드
-                <input id="photo-upload" type="file" accept="image/*" />
+                업로드
+                <input id="media-upload" type="file" accept="image/*,video/*" />
               </label>
+              <input
+                id="camera-capture"
+                type="file"
+                accept="image/*,video/*"
+                capture="environment"
+                class="hidden"
+              />
             </div>
             <div class="preview">
               <video id="camera" autoplay playsinline></video>
@@ -135,7 +142,6 @@
               <canvas id="badge" width="1080" height="1080"></canvas>
             </div>
             <div class="row">
-              <button id="capture">촬영하기</button>
               <button id="generate" class="primary">인증 카드 생성</button>
             </div>
             <div class="result">

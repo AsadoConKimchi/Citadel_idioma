@@ -41,9 +41,9 @@ const loginUserName = document.getElementById("login-user-name");
 
 const studyPlanPreview = document.getElementById("study-plan-preview");
 const openCameraButton = document.getElementById("open-camera");
-const captureButton = document.getElementById("capture");
 const generateButton = document.getElementById("generate");
-const photoUpload = document.getElementById("photo-upload");
+const mediaUpload = document.getElementById("media-upload");
+const cameraCapture = document.getElementById("camera-capture");
 const cameraVideo = document.getElementById("camera");
 const snapshotCanvas = document.getElementById("snapshot");
 const photoPreview = document.getElementById("photo-preview");
@@ -73,8 +73,8 @@ let timerInterval = null;
 let elapsedSeconds = 0;
 let isRunning = false;
 let isResetReady = false;
-let cameraStream = null;
 let photoSource = null;
+let mediaPreviewUrl = null;
 let latestDonationPayload = null;
 let sessionPage = 1;
 let donationPage = 1;
@@ -206,6 +206,7 @@ const openTimerModal = () => {
   timerModal.classList.remove("hidden");
   timerModal.setAttribute("aria-hidden", "false");
   document.body.classList.add("timer-modal-open");
+  document.documentElement.classList.add("timer-modal-open");
 };
 
 const closeTimerModal = () => {
@@ -215,6 +216,7 @@ const closeTimerModal = () => {
   timerModal.classList.add("hidden");
   timerModal.setAttribute("aria-hidden", "true");
   document.body.classList.remove("timer-modal-open");
+  document.documentElement.classList.remove("timer-modal-open");
 };
 
 const tick = () => {
@@ -402,9 +404,23 @@ const renderStudyHistoryPage = () => {
   const listEl = document.getElementById("study-history-list");
   const emptyEl = document.getElementById("study-history-empty");
   const currentLabel = document.getElementById("study-history-date");
+  const leaderboardEl = document.getElementById("study-leaderboard");
   if (!dateSelect || !listEl || !emptyEl) {
     return;
   }
+  const totalSeconds = getAllSessionsTotalSeconds();
+  renderLeaderboard({
+    element: leaderboardEl,
+    entries: totalSeconds
+      ? [
+          {
+            name: "나",
+            value: totalSeconds,
+          },
+        ]
+      : [],
+    valueFormatter: (value) => formatMinutesSeconds(value),
+  });
   const dates = getSessionStorageDates();
   dateSelect.innerHTML = "";
   if (!dates.length) {
@@ -513,6 +529,31 @@ const finishSession = () => {
 
 const getDonationHistory = () =>
   JSON.parse(localStorage.getItem(donationHistoryKey) || "[]");
+
+const getTotalDonatedSats = () =>
+  getDonationHistory().reduce((sum, item) => sum + Number(item.sats || 0), 0);
+
+const renderLeaderboard = ({ element, entries, valueFormatter }) => {
+  if (!element) {
+    return;
+  }
+  element.innerHTML = "";
+  const maxCount = 5;
+  const safeEntries = Array.isArray(entries) ? entries.slice(0, maxCount) : [];
+  for (let index = 0; index < maxCount; index += 1) {
+    const entry = safeEntries[index];
+    const item = document.createElement("li");
+    item.className = "leaderboard-item";
+    const rank = index + 1;
+    if (entry) {
+      const valueLabel = valueFormatter ? valueFormatter(entry.value) : String(entry.value);
+      item.innerHTML = `<span>${rank}위 · <strong>${entry.name}</strong></span><span>${valueLabel}</span>`;
+    } else {
+      item.innerHTML = `<span>${rank}위 · <strong>대기 중</strong></span><span>-</span>`;
+    }
+    element.appendChild(item);
+  }
+};
 
 const getDonatedSecondsByScope = ({ scope, dateKey } = {}) => {
   const history = getDonationHistory();
@@ -691,9 +732,23 @@ const renderDonationHistoryPage = () => {
   const listEl = document.getElementById("donation-history-list");
   const emptyEl = document.getElementById("donation-history-empty-page");
   const currentLabel = document.getElementById("donation-history-month");
+  const leaderboardEl = document.getElementById("donation-leaderboard");
   if (!monthSelect || !listEl || !emptyEl) {
     return;
   }
+  const totalSats = getTotalDonatedSats();
+  renderLeaderboard({
+    element: leaderboardEl,
+    entries: totalSats
+      ? [
+          {
+            name: "나",
+            value: totalSats,
+          },
+        ]
+      : [],
+    valueFormatter: (value) => `${value} sats`,
+  });
   const months = getDonationHistoryMonths();
   monthSelect.innerHTML = "";
   if (!months.length) {
@@ -1365,57 +1420,99 @@ studyPlanPreview?.addEventListener("input", (event) => {
   applyStudyPlanValue(event.target.value);
 });
 
-const stopCamera = () => {
-  if (cameraStream) {
-    cameraStream.getTracks().forEach((track) => track.stop());
-    cameraStream = null;
+const resetMediaPreview = () => {
+  if (mediaPreviewUrl) {
+    URL.revokeObjectURL(mediaPreviewUrl);
+    mediaPreviewUrl = null;
   }
+  photoSource = null;
+  photoPreview.src = "";
+  photoPreview.style.display = "none";
+  snapshotCanvas.style.display = "none";
+  badgeCanvas.style.display = "none";
+  cameraVideo.pause();
+  cameraVideo.removeAttribute("src");
+  cameraVideo.load();
+  cameraVideo.style.display = "none";
 };
 
-openCameraButton?.addEventListener("click", async () => {
-  try {
-    stopCamera();
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" },
-      audio: false,
-    });
-    cameraVideo.srcObject = cameraStream;
-    cameraVideo.style.display = "block";
-    snapshotCanvas.style.display = "none";
-    photoPreview.style.display = "none";
-    badgeCanvas.style.display = "none";
-  } catch (error) {
-    alert("카메라를 열 수 없습니다. 권한을 확인해주세요.");
-  }
-});
+const loadVideoThumbnail = (file) =>
+  new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    mediaPreviewUrl = url;
+    cameraVideo.src = url;
+    cameraVideo.muted = true;
+    cameraVideo.playsInline = true;
+    const cleanup = () => {
+      cameraVideo.removeEventListener("loadeddata", onLoadedData);
+      cameraVideo.removeEventListener("error", onError);
+    };
+    const onLoadedData = () => {
+      try {
+        cameraVideo.currentTime = Math.min(0.1, cameraVideo.duration || 0);
+      } catch (error) {
+        cleanup();
+        reject(error);
+        return;
+      }
+      const onSeeked = () => {
+        cameraVideo.removeEventListener("seeked", onSeeked);
+        snapshotCanvas.width = cameraVideo.videoWidth || snapshotCanvas.width;
+        snapshotCanvas.height = cameraVideo.videoHeight || snapshotCanvas.height;
+        const context = snapshotCanvas.getContext("2d");
+        context.drawImage(cameraVideo, 0, 0, snapshotCanvas.width, snapshotCanvas.height);
+        const dataUrl = snapshotCanvas.toDataURL("image/png");
+        photoPreview.src = dataUrl;
+        photoPreview.style.display = "block";
+        snapshotCanvas.style.display = "none";
+        cameraVideo.style.display = "none";
+        cleanup();
+        resolve();
+      };
+      cameraVideo.addEventListener("seeked", onSeeked);
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error("video-load-failed"));
+    };
+    cameraVideo.addEventListener("loadeddata", onLoadedData);
+    cameraVideo.addEventListener("error", onError);
+  });
 
-captureButton?.addEventListener("click", () => {
-  if (!cameraStream) {
-    alert("먼저 카메라를 열어주세요.");
-    return;
-  }
-  const context = snapshotCanvas.getContext("2d");
-  context.drawImage(cameraVideo, 0, 0, snapshotCanvas.width, snapshotCanvas.height);
-  snapshotCanvas.style.display = "block";
-  cameraVideo.style.display = "none";
-  photoPreview.style.display = "none";
-  badgeCanvas.style.display = "none";
-  photoSource = snapshotCanvas;
-  stopCamera();
-});
-
-photoUpload?.addEventListener("change", (event) => {
-  const file = event.target.files[0];
+const handleMediaFile = async (file) => {
   if (!file) {
     return;
   }
+  resetMediaPreview();
+  if (file.type.startsWith("video/")) {
+    try {
+      await loadVideoThumbnail(file);
+      photoSource = photoPreview;
+    } catch (error) {
+      alert("동영상을 불러올 수 없습니다. 다른 파일을 선택해주세요.");
+    }
+    return;
+  }
   const url = URL.createObjectURL(file);
+  mediaPreviewUrl = url;
   photoPreview.src = url;
   photoPreview.style.display = "block";
   snapshotCanvas.style.display = "none";
   cameraVideo.style.display = "none";
   badgeCanvas.style.display = "none";
   photoSource = photoPreview;
+};
+
+openCameraButton?.addEventListener("click", () => {
+  cameraCapture?.click();
+});
+
+mediaUpload?.addEventListener("change", (event) => {
+  handleMediaFile(event.target.files[0]);
+});
+
+cameraCapture?.addEventListener("change", (event) => {
+  handleMediaFile(event.target.files[0]);
 });
 
 const drawBadge = (sessionOverride = null) => {
@@ -1504,7 +1601,7 @@ const shareToDiscord = async () => {
 
 generateButton?.addEventListener("click", () => {
   if (!photoSource) {
-    alert("먼저 사진을 촬영하거나 업로드해주세요.");
+    alert("먼저 사진 또는 동영상을 촬영하거나 업로드해주세요.");
     return;
   }
   drawBadge();
