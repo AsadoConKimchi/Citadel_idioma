@@ -227,12 +227,17 @@ const sendDiscordShare = async ({
   minutes,
   sats,
   donationMode,
+  donationScope,
+  totalDonatedSats,
+  accumulatedSats,
+  totalAccumulatedSats,
   wordCount,
   username,
   donationNote,
   discordUserId,
   videoDataUrl,
   videoFilename,
+  shareContext,
 }) => {
   if (!DISCORD_WEBHOOK_URL) {
     throw new Error("DISCORD_WEBHOOK_URL이 설정되지 않았습니다.");
@@ -244,8 +249,18 @@ const sendDiscordShare = async ({
   const form = new FormData();
   const noteLabel = donationNote?.trim() ? `메모: ${donationNote.trim()}` : "메모: 없음";
   const mentionLabel = getMentionLabel({ userId: discordUserId, username });
+  const isAccumulatedPayment =
+    shareContext === "payment" && donationScope && donationScope === "total";
+  const isAccumulatedShare = shareContext === "share" && donationScope === "total";
+  const safeTotalDonated = Number(totalDonatedSats || 0);
+  const safeAccumulated = Number(accumulatedSats || 0);
+  const safeTotalAccumulated = Number(totalAccumulatedSats || 0);
   const payload = {
-    content: `${mentionLabel}님께서 학습 완료 후, **${sats} sats 기부!**\n${noteLabel}`,
+    content: isAccumulatedPayment
+      ? `${mentionLabel}님께서 적립되어있던 **${sats} sats 기부 완료!** 지금까지 총 기부액 **${safeTotalDonated} sats!**`
+      : isAccumulatedShare
+        ? `${mentionLabel}님께서 POW 완료 후, **${safeAccumulated} sats 적립**, 총 적립액 **${safeTotalAccumulated} sats**.`
+        : `${mentionLabel}님께서 POW 완료 후, **${sats} sats 기부 완료!** 지금까지 총 기부액 **${safeTotalDonated} sats!**\n${noteLabel}`,
   };
   form.append("payload_json", JSON.stringify(payload));
   const file = new Blob([parsed.buffer], { type: parsed.mime });
@@ -520,6 +535,9 @@ app.post("/api/donation-invoice", async (req, res) => {
     sats,
     donationMode,
     donationScope,
+    totalDonatedSats,
+    accumulatedSats,
+    totalAccumulatedSats,
     wordCount,
     donationNote,
     username,
@@ -563,12 +581,16 @@ app.post("/api/donation-invoice", async (req, res) => {
         sats: satsNumber,
         donationMode,
         donationScope,
+        totalDonatedSats,
+        accumulatedSats,
+        totalAccumulatedSats,
         wordCount,
         donationNote,
         username: resolvedUsername,
         discordUserId,
         videoDataUrl,
         videoFilename,
+        shareContext: "payment",
       });
       pendingDonationsByInvoice.set(invoice, donationId);
       setTimeout(() => {
@@ -664,12 +686,16 @@ app.post("/api/donation-invoice", async (req, res) => {
       sats: satsNumber,
       donationMode,
       donationScope,
+      totalDonatedSats,
+      accumulatedSats,
+      totalAccumulatedSats,
       wordCount,
       donationNote,
       username: resolvedUsername,
       discordUserId,
       videoDataUrl,
       videoFilename,
+      shareContext: "payment",
     });
     pendingDonationsByInvoice.set(invoice, donationId);
 
@@ -836,6 +862,10 @@ app.post("/api/share", async (req, res) => {
     minutes,
     sats,
     donationMode,
+    donationScope,
+    totalDonatedSats,
+    accumulatedSats,
+    totalAccumulatedSats,
     wordCount,
     donationNote,
     videoDataUrl,
@@ -858,7 +888,7 @@ app.post("/api/share", async (req, res) => {
     const studyTimeLabel = studyTime || `${minutes ?? 0}분`;
     const goalRateLabel = goalRate || "0.0%";
     const modeLabel =
-      donationMode === "words" ? `Words: ${wordCount}개` : `Study Time: ${minutes}분`;
+      donationMode === "words" ? `Words: ${wordCount}개` : `POW Time: ${minutes}분`;
     const username = req.session?.user?.username || "사용자";
     const discordUserId = req.session?.user?.id || "";
     await sendDiscordShare({
@@ -869,12 +899,17 @@ app.post("/api/share", async (req, res) => {
       minutes,
       sats,
       donationMode,
+      donationScope,
+      totalDonatedSats,
+      accumulatedSats,
+      totalAccumulatedSats,
       wordCount,
       donationNote,
       username,
       discordUserId,
       videoDataUrl,
       videoFilename,
+      shareContext: "share",
     });
 
     res.json({ message: "디스코드 공유를 완료했습니다." });
