@@ -186,16 +186,16 @@ const formatSatsRateInput = () => {
   satsRateInput.value = numeric ? `${numeric}sats` : "";
 };
 
-const getGoalProgressFor = (totalSeconds, goalMinutes) => {
-  if (!goalMinutes || goalMinutes <= 0) {
+const getGoalProgress = (totalSeconds) => {
+  if (!goalInput) {
+    return 0;
+  }
+  const goalMinutes = Number(goalInput.value || 0);
+  if (goalMinutes <= 0) {
     return 0;
   }
   return Math.min(100, (totalSeconds / 60 / goalMinutes) * 100);
 };
-
-const getCurrentGoalMinutes = () => Number(goalInput?.value || 0);
-
-const getGoalProgress = (totalSeconds) => getGoalProgressFor(totalSeconds, getCurrentGoalMinutes());
 
 const getStoredTotal = () => {
   const saved = Number(localStorage.getItem(`citadel-total-${todayKey}`) || 0);
@@ -373,29 +373,16 @@ const getLastSessionSeconds = () => {
     const raw = localStorage.getItem(lastSessionKey);
     const parsed = raw ? JSON.parse(raw) : null;
     if (!parsed) {
-      return {
-        durationSeconds: 0,
-        goalMinutes: 0,
-        plan: "",
-        sessionId: "",
-        satsRate: 0,
-      };
+      return { durationSeconds: 0, goalMinutes: 0, plan: "", sessionId: "" };
     }
     return {
       durationSeconds: Number(parsed.durationSeconds || 0),
       goalMinutes: Number(parsed.goalMinutes || 0),
       plan: parsed.plan || "",
       sessionId: parsed.sessionId || "",
-      satsRate: Number(parsed.satsRate || 0),
     };
   } catch (error) {
-    return {
-      durationSeconds: 0,
-      goalMinutes: 0,
-      plan: "",
-      sessionId: "",
-      satsRate: 0,
-    };
+    return { durationSeconds: 0, goalMinutes: 0, plan: "", sessionId: "" };
   }
 };
 
@@ -563,7 +550,6 @@ const finishSession = () => {
   pauseTimer();
   const plan = getPlanValue();
   const goalMinutes = Number(goalInput.value || 0);
-  const sessionRate = parseSatsRate(satsRateInput?.value);
   const achieved = goalMinutes > 0 ? elapsedSeconds >= goalMinutes * 60 : false;
   const sessionId = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
   const sessions = loadSessions();
@@ -574,19 +560,12 @@ const finishSession = () => {
     achieved,
     timestamp: new Date().toISOString(),
     sessionId,
-    satsRate: sessionRate,
   });
   saveSessions(sessions);
   sessionPage = Math.ceil(sessions.length / 2);
   const total = getStoredTotal() + elapsedSeconds;
   setStoredTotal(total);
-  setLastSessionSeconds({
-    durationSeconds: elapsedSeconds,
-    goalMinutes,
-    plan,
-    sessionId,
-    satsRate: sessionRate,
-  });
+  setLastSessionSeconds({ durationSeconds: elapsedSeconds, goalMinutes, plan, sessionId });
   if (donationScope?.value === "daily") {
     const pending = getPendingDaily();
     const entry = pending[todayKey] || {
@@ -597,10 +576,10 @@ const finishSession = () => {
       mode: donationMode?.value || "pow-writing",
       note: "",
     };
+    const rate = parseSatsRate(satsRateInput?.value);
     const sessionSats = calculateSats({
-      rate: sessionRate,
+      rate,
       seconds: elapsedSeconds,
-      goalMinutes,
     });
     entry.seconds += elapsedSeconds;
     entry.sats += sessionSats;
@@ -611,10 +590,10 @@ const finishSession = () => {
     savePendingDaily(pending);
   }
   if (donationScope?.value === "total") {
+    const rate = parseSatsRate(satsRateInput?.value);
     const sessionSats = calculateSats({
-      rate: sessionRate,
+      rate,
       seconds: elapsedSeconds,
-      goalMinutes,
     });
     showAccumulationToast(
       `기부금 * 달성률을 곱해서 ${sessionSats} sats가 적립되었습니다.`
@@ -718,19 +697,14 @@ const getAllSessionsTotalSeconds = () => {
 
 const getDonationSeconds = () => {
   const scope = getDonationScopeValue();
-  const runningSeconds = elapsedSeconds > 0 ? elapsedSeconds : 0;
   if (scope === "session") {
     return getLastSessionSeconds().durationSeconds;
   }
   if (scope === "daily") {
-    const available =
-      getStoredTotal() +
-      runningSeconds -
-      getDonatedSecondsByScope({ scope, dateKey: todayKey });
+    const available = getStoredTotal() - getDonatedSecondsByScope({ scope, dateKey: todayKey });
     return Math.max(0, available);
   }
-  const available =
-    getAllSessionsTotalSeconds() + runningSeconds - getDonatedSecondsByScope({ scope });
+  const available = getAllSessionsTotalSeconds() - getDonatedSecondsByScope({ scope });
   return Math.max(0, available);
 };
 
@@ -742,20 +716,19 @@ const getSessionEstimateSeconds = () => {
 };
 
 const getSessionAccumulatedSats = () => {
+  const rate = parseSatsRate(satsRateInput?.value);
   const lastSession = getLastSessionSeconds();
-  const rate = lastSession.satsRate || parseSatsRate(satsRateInput?.value);
-  return calculateSatsForGoal({
+  return calculateSats({
     rate,
     seconds: lastSession.durationSeconds || 0,
-    goalMinutes: lastSession.goalMinutes || 0,
   });
 };
 
-const calculateSatsForGoal = ({ rate, seconds, goalMinutes }) => {
+const calculateSats = ({ rate, seconds }) => {
   if (!rate) {
     return 0;
   }
-  const progressRate = getGoalProgressFor(seconds, goalMinutes) / 100;
+  const progressRate = getGoalProgress(seconds) / 100;
   return Math.round(rate * progressRate);
 };
 
@@ -832,38 +805,10 @@ const getDonatedSatsByScope = ({ scope, dateKey } = {}) =>
 
 const getDonationSatsForScope = () => {
   const rate = parseSatsRate(satsRateInput?.value);
-  const scope = getDonationScopeValue();
-  if (scope === "session") {
-    return calculateSats({
-      rate,
-      seconds: getSessionEstimateSeconds(),
-      goalMinutes: getCurrentGoalMinutes(),
-    });
-  }
-  const accumulated = getAccumulatedSatsForScope(scope);
-  const donated = getDonatedSatsByScope({
-    scope,
-    dateKey: scope === "daily" ? todayKey : undefined,
+  return calculateSats({
+    rate,
+    seconds: getDonationSeconds(),
   });
-  return Math.max(0, accumulated - donated);
-};
-
-const getDonationPaymentSnapshot = () => {
-  const scope = getDonationScopeValue();
-  if (scope !== "session") {
-    return {
-      scope,
-      seconds: getDonationSeconds(),
-      sats: getDonationSatsForScope(),
-    };
-  }
-  const rate = parseSatsRate(satsRateInput?.value);
-  const seconds = getSessionEstimateSeconds();
-  return {
-    scope,
-    seconds,
-    sats: calculateSats({ rate, seconds }),
-  };
 };
 
 const getDonationPaymentSnapshot = () => {
