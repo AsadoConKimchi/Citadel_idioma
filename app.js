@@ -2078,15 +2078,7 @@ document.addEventListener("click", (event) => {
 const loadSession = async ({ ignoreUrlFlag = false } = {}) => {
   try {
     const params = new URLSearchParams(window.location.search);
-    if (!ignoreUrlFlag && params.get("unauthorized")) {
-      setAuthState({ authenticated: true, authorized: false });
-      return;
-    }
-    if (ignoreUrlFlag && params.has("unauthorized")) {
-      params.delete("unauthorized");
-      const nextUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
-      window.history.replaceState({}, "", nextUrl);
-    }
+    const hasUnauthorizedFlag = params.has("unauthorized");
     if (discordStatus) {
       discordStatus.textContent = "로그인 상태: 확인 중...";
     }
@@ -2096,6 +2088,11 @@ const loadSession = async ({ ignoreUrlFlag = false } = {}) => {
       return;
     }
     const data = await response.json();
+    if (hasUnauthorizedFlag && (ignoreUrlFlag || data?.authorized)) {
+      params.delete("unauthorized");
+      const nextUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
+      window.history.replaceState({}, "", nextUrl);
+    }
     setAuthState(data);
   } catch (error) {
     setAuthState({ error: "서버 연결 실패" });
