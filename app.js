@@ -186,16 +186,16 @@ const formatSatsRateInput = () => {
   satsRateInput.value = numeric ? `${numeric}sats` : "";
 };
 
-const getGoalProgress = (totalSeconds) => {
-  if (!goalInput) {
-    return 0;
-  }
-  const goalMinutes = Number(goalInput.value || 0);
-  if (goalMinutes <= 0) {
+const getGoalProgressFor = (totalSeconds, goalMinutes) => {
+  if (!goalMinutes || goalMinutes <= 0) {
     return 0;
   }
   return Math.min(100, (totalSeconds / 60 / goalMinutes) * 100);
 };
+
+const getCurrentGoalMinutes = () => Number(goalInput?.value || 0);
+
+const getGoalProgress = (totalSeconds) => getGoalProgressFor(totalSeconds, getCurrentGoalMinutes());
 
 const getStoredTotal = () => {
   const saved = Number(localStorage.getItem(`citadel-total-${todayKey}`) || 0);
@@ -715,20 +715,11 @@ const getSessionEstimateSeconds = () => {
   return getLastSessionSeconds().durationSeconds;
 };
 
-const getSessionAccumulatedSats = () => {
-  const rate = parseSatsRate(satsRateInput?.value);
-  const lastSession = getLastSessionSeconds();
-  return calculateSats({
-    rate,
-    seconds: lastSession.durationSeconds || 0,
-  });
-};
-
-const calculateSats = ({ rate, seconds }) => {
+const calculateSatsForGoal = ({ rate, seconds, goalMinutes }) => {
   if (!rate) {
     return 0;
   }
-  const progressRate = getGoalProgress(seconds) / 100;
+  const progressRate = getGoalProgressFor(seconds, goalMinutes) / 100;
   return Math.round(rate * progressRate);
 };
 
@@ -738,6 +729,15 @@ const calculateSats = ({ rate, seconds, goalMinutes }) =>
     seconds,
     goalMinutes: goalMinutes ?? getCurrentGoalMinutes(),
   });
+
+const getSessionAccumulatedSats = () => {
+  const rate = parseSatsRate(satsRateInput?.value);
+  const lastSession = getLastSessionSeconds();
+  return calculateSats({
+    rate,
+    seconds: lastSession.durationSeconds || 0,
+  });
+};
 
 const getSessionSatsRate = (session) =>
   parseSatsRate(session?.satsRate ?? satsRateInput?.value);
