@@ -1298,10 +1298,10 @@ const openLightningWallet = async () => {
         note,
         isPaid: true,
       });
-      if (donationStatus) {
-        donationStatus.textContent = `오늘 ${sats} sats 기부 기록을 저장했습니다.`;
-      }
-      resetShareSection();
+      showAccumulationToast("기부가 완료되었습니다. 페이지를 새로고침합니다...");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     },
   });
 };
@@ -1346,6 +1346,12 @@ const openAccumulatedDonationPayment = async () => {
         note,
         isPaid: true,
       });
+
+      // 적립액 기부 완료 후 pending daily 삭제
+      const pending = getPendingDaily();
+      delete pending[todayKey];
+      savePendingDaily(pending);
+
       showAccumulationToast("적립액 기부 요청이 완료되었습니다.");
       fetch("/api/share", {
         method: "POST",
@@ -1363,10 +1369,10 @@ const openAccumulatedDonationPayment = async () => {
             }
             throw new Error(errorMessage || "디스코드 공유에 실패했습니다.");
           }
-          if (shareStatus) {
-            shareStatus.textContent = "기부 완료 메시지를 디스코드에 전송했습니다.";
-          }
-          resetShareSection();
+          showAccumulationToast("기부 완료! 페이지를 새로고침합니다...");
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
         })
         .catch((error) => {
           if (shareStatus) {
@@ -2047,27 +2053,31 @@ const shareToDiscordOnly = async () => {
       shareStatus.textContent = "디스코드 공유를 완료했습니다.";
     }
 
-    // 자동으로 기부 기록 저장
-    const mode = donationMode?.value || "pow-writing";
-    const { sats, seconds: donationSeconds, scope } = getDonationPaymentSnapshot();
-    const totalMinutes = Math.floor(donationSeconds / 60);
-    const note = donationNote?.value?.trim() || "";
-    saveDonationHistoryEntry({
-      date: todayKey,
-      sats: payload.sats,
-      minutes: totalMinutes,
-      seconds: donationSeconds,
-      mode,
-      scope: getDonationScopeValue(),
-      sessionId: scope === "session" ? lastSession.sessionId : "",
-      note,
-      isPaid: false,
-    });
-    donationPage = 1;
+    // 적립 후 기부 모드가 아닌 경우에만 기부 기록 저장
+    if (getDonationScopeValue() !== "total") {
+      const mode = donationMode?.value || "pow-writing";
+      const { sats, seconds: donationSeconds, scope } = getDonationPaymentSnapshot();
+      const totalMinutes = Math.floor(donationSeconds / 60);
+      const note = donationNote?.value?.trim() || "";
+      saveDonationHistoryEntry({
+        date: todayKey,
+        sats: payload.sats,
+        minutes: totalMinutes,
+        seconds: donationSeconds,
+        mode,
+        scope: getDonationScopeValue(),
+        sessionId: scope === "session" ? lastSession.sessionId : "",
+        note,
+        isPaid: false,
+      });
+      donationPage = 1;
+    }
 
-    updateAccumulatedSats();
-    showAccumulationToast("디스코드 공유 완료 및 기부 기록이 저장되었습니다.");
-    resetShareSection();
+    // 디스코드 공유 성공 후 페이지 새로고침으로 모든 상태 업데이트
+    showAccumulationToast("디스코드 공유가 완료되었습니다. 페이지를 새로고침합니다...");
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
   } catch (error) {
     if (shareStatus) {
       shareStatus.textContent = error?.message || "디스코드 공유에 실패했습니다.";
