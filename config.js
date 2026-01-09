@@ -4,7 +4,7 @@ const BACKEND_CONFIG = {
   development: 'http://localhost:8787',
 
   // 프로덕션 환경 (Cloudflare Workers)
-  production: 'https://citadel-pow-backend.workers.dev',
+  production: 'https://citadel-pow-backend.magadenuevo2025.workers.dev',
 };
 
 // 현재 환경 감지
