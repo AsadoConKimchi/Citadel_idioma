@@ -160,16 +160,31 @@ const lastSessionKey = `citadel-last-session-${todayKey}`;
 const donationHistoryKey = "citadel-donations";
 
 const formatTime = (seconds) => {
-  const hrs = String(Math.floor(seconds / 3600)).padStart(2, "0");
-  const mins = String(Math.floor((seconds % 3600) / 60)).padStart(2, "0");
-  const secs = String(seconds % 60).padStart(2, "0");
-  return `${hrs}:${mins}:${secs}`;
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  // 1시간 이상: "00시간 00분 00초"
+  if (hrs > 0) {
+    return `${String(hrs).padStart(2, "0")}시간 ${String(mins).padStart(2, "0")}분 ${String(secs).padStart(2, "0")}초`;
+  }
+
+  // 1시간 미만: "00분 00초"
+  return `${String(mins).padStart(2, "0")}분 ${String(secs).padStart(2, "0")}초`;
 };
 
 const formatMinutesSeconds = (seconds) => {
-  const mins = String(Math.floor(seconds / 60)).padStart(2, "0");
-  const secs = String(seconds % 60).padStart(2, "0");
-  return `${mins}분 ${secs}초`;
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  // 1시간 이상: "00시간 00분 00초"
+  if (hrs > 0) {
+    return `${String(hrs).padStart(2, "0")}시간 ${String(mins).padStart(2, "0")}분 ${String(secs).padStart(2, "0")}초`;
+  }
+
+  // 1시간 미만: "00분 00초"
+  return `${String(mins).padStart(2, "0")}분 ${String(secs).padStart(2, "0")}초`;
 };
 
 const parseSatsRate = (value) => {
