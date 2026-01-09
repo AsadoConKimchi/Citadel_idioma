@@ -1396,11 +1396,6 @@ const openAccumulatedDonationPayment = async () => {
         isPaid: true,
       });
 
-      // 적립액 기부 완료 후 pending daily 삭제
-      const pending = getPendingDaily();
-      delete pending[todayKey];
-      savePendingDaily(pending);
-
       showAccumulationToast("적립액 기부 요청이 완료되었습니다.");
       fetch("/api/share", {
         method: "POST",
@@ -1418,6 +1413,12 @@ const openAccumulatedDonationPayment = async () => {
             }
             throw new Error(errorMessage || "디스코드 공유에 실패했습니다.");
           }
+
+          // 디스코드 공유 성공 후 pending daily 삭제
+          const pending = getPendingDaily();
+          delete pending[todayKey];
+          savePendingDaily(pending);
+
           showAccumulationToast("기부 완료! 페이지를 새로고침합니다...");
           setTimeout(() => {
             window.location.reload();
@@ -1825,8 +1826,10 @@ donationScope?.addEventListener("change", () => {
   updateTodayDonationSummary();
 });
 satsRateInput?.addEventListener("input", () => {
-  formatSatsRateInput();
   updateSats();
+});
+satsRateInput?.addEventListener("blur", () => {
+  formatSatsRateInput();
 });
 studyPlanInput?.addEventListener("input", saveStudyPlan);
 studyPlanPreview?.addEventListener("input", (event) => {

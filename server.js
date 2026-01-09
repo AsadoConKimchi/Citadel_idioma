@@ -283,21 +283,26 @@ const sendDiscordShare = async ({
   const safeTotalAccumulated = Number(totalAccumulatedSats || 0);
   const payload = {
     content: isAccumulatedPayment
-      ? `${mentionLabel}님께서 적립되어있던 ${sats} sats 기부 완료!`
+      ? `${mentionLabel}님께서 적립해 두었던, ${sats}sats 기부 완료! 총 기부액 ${safeTotalDonated}sats!`
       : isAccumulatedShare
         ? `${mentionLabel}님께서 "${modeLabel}"에서 POW 완료 후, ${safeAccumulated} sats 적립! 총 적립액 ${safeTotalAccumulated} sats!\n${noteLine}`
         : `${mentionLabel}님께서 "${modeLabel}"에서 POW 완료 후, ${sats} sats 기부!\n${noteLine}`,
   };
   form.append("payload_json", JSON.stringify(payload));
-  const file = new Blob([parsed.buffer], { type: parsed.mime });
-  form.append("files[0]", file, "citadel_idioma_badge.png");
-  if (videoDataUrl) {
-    const videoParsed = parseDataUrl(videoDataUrl);
-    if (videoParsed) {
-      const extension = getFileExtension(videoParsed.mime);
-      const safeName = sanitizeFilename(videoFilename, `citadel_study_video.${extension}`);
-      const videoBlob = new Blob([videoParsed.buffer], { type: videoParsed.mime });
-      form.append("files[1]", videoBlob, safeName);
+
+  // 적립액 기부(payment)가 아닐 때만 이미지와 동영상 첨부
+  if (!isAccumulatedPayment) {
+    const file = new Blob([parsed.buffer], { type: parsed.mime });
+    form.append("files[0]", file, "citadel_idioma_badge.png");
+
+    if (videoDataUrl) {
+      const videoParsed = parseDataUrl(videoDataUrl);
+      if (videoParsed) {
+        const extension = getFileExtension(videoParsed.mime);
+        const safeName = sanitizeFilename(videoFilename, `citadel_study_video.${extension}`);
+        const videoBlob = new Blob([videoParsed.buffer], { type: videoParsed.mime });
+        form.append("files[1]", videoBlob, safeName);
+      }
     }
   }
 
