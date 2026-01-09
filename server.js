@@ -289,12 +289,40 @@ const sendDiscordShare = async ({
   }
 
   const form = new FormData();
+
+  // Blink 지갑 보유액 조회
+  const walletBalance = await getBlinkWalletBalance();
+
+  // 메시지 포맷 생성
+  let contentMessage;
+  if (isAccumulatedPayment) {
+    // 적립액 기부: 결제 후 남은 적립액 표시
+    const remainingAccumulated = safeTotalAccumulated - sats;
+    const previousTotal = safeTotalDonated - sats;
+    const achievedMilestone = getAchievedMilestone(previousTotal, safeTotalDonated);
+
+    const milestoneText = achievedMilestone
+      ? ` 누적 기부액 ${formatMilestone(achievedMilestone)}sats 달성!`
+      : '';
+
+    contentMessage = `${mentionLabel}님께서 적립해 두셨던 ${sats}sats 기부 완료!${milestoneText} 현재 Citadel POW BECA ${walletBalance}sats`;
+  } else if (isAccumulatedShare) {
+    // 적립만 (결제 없음): 총 적립액 표시
+    contentMessage = `${mentionLabel}님께서 "${modeLabel}"에서 POW 완료 후, ${safeAccumulated} sats 적립! 총 적립액 ${safeTotalAccumulated} sats!\n${noteLine}`;
+  } else {
+    // 즉시 기부: 마일스톤 달성 체크 및 지갑 보유액 표시
+    const previousTotal = safeTotalDonated - sats;
+    const achievedMilestone = getAchievedMilestone(previousTotal, safeTotalDonated);
+
+    const milestoneText = achievedMilestone
+      ? ` 누적 기부액 ${formatMilestone(achievedMilestone)}sats 달성!`
+      : '';
+
+    contentMessage = `${mentionLabel}님께서 "${modeLabel}"에서 POW 완료 후, ${sats} sats 기부 완료!${milestoneText} 현재 Citadel POW BECA ${walletBalance}sats\n${noteLine}`;
+  }
+
   const payload = {
-    content: isAccumulatedPayment
-      ? `${mentionLabel}님께서 적립해 두었던, ${sats}sats 기부 완료! 총 기부액 ${safeTotalDonated}sats!`
-      : isAccumulatedShare
-        ? `${mentionLabel}님께서 "${modeLabel}"에서 POW 완료 후, ${safeAccumulated} sats 적립! 총 적립액 ${safeTotalAccumulated} sats!\n${noteLine}`
-        : `${mentionLabel}님께서 "${modeLabel}"에서 POW 완료 후, ${sats} sats 기부!\n${noteLine}`,
+    content: contentMessage,
   };
   form.append("payload_json", JSON.stringify(payload));
 
@@ -371,6 +399,74 @@ const getBlinkBtcWalletId = async () => {
   }
   blinkBtcWalletId = btcWallet.id;
   return blinkBtcWalletId;
+};
+
+const getBlinkWalletBalance = async () => {
+  if (!BLINK_API_ENDPOINT || !BLINK_API_KEY) {
+    return 0;
+  }
+  try {
+    const query = `
+      query Me {
+        me {
+          defaultAccount {
+            wallets {
+              id
+              walletCurrency
+              balance
+            }
+          }
+        }
+      }
+    `;
+    const result = await blinkGraphqlRequest(query);
+    const wallets = result?.me?.defaultAccount?.wallets || [];
+    const btcWallet = wallets.find((wallet) => wallet.walletCurrency === "BTC");
+    return Number(btcWallet?.balance || 0);
+  } catch (error) {
+    console.error("Blink 지갑 잔액 조회 실패:", error);
+    return 0;
+  }
+};
+
+// 마일스톤 정의 (sats 단위)
+const MILESTONES = [
+  10000,    // 10k
+  50000,    // 50k
+  100000,   // 100k
+  250000,   // 250k
+  500000,   // 500k
+  750000,   // 750k
+  1000000,  // 1M
+  2000000,  // 2M
+  5000000,  // 5M
+  10000000, // 10M
+  25000000, // 25M
+  50000000, // 50M
+  100000000, // 100M
+];
+
+// 마일스톤 달성 체크
+const getAchievedMilestone = (previousTotal, newTotal) => {
+  for (const milestone of MILESTONES) {
+    if (previousTotal < milestone && newTotal >= milestone) {
+      return milestone;
+    }
+  }
+  return null;
+};
+
+// 마일스톤을 읽기 쉬운 형태로 포맷
+const formatMilestone = (sats) => {
+  if (sats >= 1000000) {
+    const millions = sats / 1000000;
+    return `${millions}M`;
+  }
+  if (sats >= 1000) {
+    const thousands = sats / 1000;
+    return `${thousands}k`;
+  }
+  return `${sats}`;
 };
 
 const createBlinkInvoice = async ({ sats, memo }) => {

@@ -88,9 +88,30 @@ const renderMyRecords = async () => {
     const sessions = response.data || [];
 
     // 카테고리 필터링
-    const filteredSessions = currentCategory === "all"
-      ? sessions
-      : sessions.filter(s => s.plan_text && s.plan_text.includes(getCategoryLabel(currentCategory)));
+    let filteredSessions;
+    if (currentCategory === "all") {
+      filteredSessions = sessions;
+    } else {
+      const selectedEmoji = getCategoryLabel(currentCategory);
+      // 모든 카테고리 이모지 목록
+      const allEmojis = ["✒️", "🎵", "📝", "🎨", "📚", "✝️"];
+
+      filteredSessions = sessions.filter(s => {
+        if (!s.plan_text) return false;
+
+        // 선택한 카테고리 이모지가 포함되어 있으면 표시
+        if (s.plan_text.includes(selectedEmoji)) return true;
+
+        // 다른 카테고리 이모지가 하나라도 있으면 제외
+        const hasOtherEmoji = allEmojis.some(emoji =>
+          emoji !== selectedEmoji && s.plan_text.includes(emoji)
+        );
+        if (hasOtherEmoji) return false;
+
+        // 어떤 카테고리 이모지도 없는 경우 (구 데이터): 모든 카테고리에 표시
+        return true;
+      });
+    }
 
     // 날짜별 그룹화
     currentSessionsByDate = {};
@@ -116,9 +137,7 @@ const renderMyRecords = async () => {
       studyDateSelect.innerHTML = '<option value="">날짜 없음</option>';
       carouselContainer.classList.add("hidden");
       studyHistoryEmpty.classList.remove("hidden");
-      studyHistoryEmpty.textContent = currentCategory === "all"
-        ? "아직 POW 기록이 없습니다."
-        : "선택한 분야의 POW 기록이 없습니다. 새 POW 세션부터 분야별 필터링이 가능합니다.";
+      studyHistoryEmpty.textContent = "아직 POW 기록이 없습니다.";
     }
 
     // 누적 시간 계산

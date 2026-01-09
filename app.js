@@ -87,7 +87,6 @@ let photoSource = null;
 let mediaPreviewUrl = null;
 let selectedVideoDataUrl = null;
 let selectedVideoFilename = "";
-let defaultBackgroundImage = null;
 let latestDonationPayload = null;
 let sessionPage = 1;
 let donationPage = 1;
@@ -816,7 +815,7 @@ const finishSession = () => {
         // 인증카드가 생성되지 않았으면 자동 생성 (사진 유무와 관계없이)
         if (!photoDataUrl || photoDataUrl === "data:,") {
           if (typeof drawBadge === 'function') {
-            await drawBadge();
+            drawBadge();
             photoDataUrl = getBadgeDataUrl();
           }
         }
@@ -1563,10 +1562,10 @@ const openLightningWalletWithPayload = async (payload, { onSuccess } = {}) => {
 const openLightningWallet = async () => {
   const { sats, seconds: donationSeconds, scope } = getDonationPaymentSnapshot();
   let dataUrl = getBadgeDataUrl();
-  // 인증카드가 생성되지 않았으면 자동으로 생성 (기본 배경 이미지 사용)
+  // 인증카드가 없으면 오류 메시지
   if (!dataUrl || dataUrl === "data:,") {
-    await drawBadge();
-    dataUrl = getBadgeDataUrl();
+    alert("먼저 인증 카드를 생성해주세요.");
+    return;
   }
   const lastSession = getLastSessionSeconds();
   const totalDonatedSats = getTotalDonatedSats() + sats;
@@ -1574,6 +1573,8 @@ const openLightningWallet = async () => {
   const mode = donationMode?.value || "pow-writing";
   const note = donationNote?.value?.trim() || "";
   const sessionId = scope === "session" ? lastSession.sessionId : "";
+  const accumulatedSats = getSessionAccumulatedSats();
+  const totalAccumulatedSats = getDonationSatsForScope();
   const payload = buildDonationPayload({
     dataUrl,
     plan: lastSession.plan,
@@ -1584,6 +1585,8 @@ const openLightningWallet = async () => {
     donationScopeValue: scope,
     donationNoteValue: note,
     totalDonatedSats,
+    accumulatedSats,
+    totalAccumulatedSats,
   });
   await openLightningWalletWithPayload(payload, {
     onSuccess: () => {
@@ -1617,16 +1620,18 @@ const openAccumulatedDonationPayment = async () => {
     return;
   }
   let dataUrl = getBadgeDataUrl();
-  // 인증카드가 생성되지 않았으면 자동으로 생성 (기본 배경 이미지 사용)
+  // 인증카드가 없으면 오류 메시지
   if (!dataUrl || dataUrl === "data:,") {
-    await drawBadge();
-    dataUrl = getBadgeDataUrl();
+    alert("먼저 인증 카드를 생성해주세요.");
+    return;
   }
   const lastSession = getLastSessionSeconds();
   const totalMinutes = Math.floor(donationSeconds / 60);
   const mode = donationMode?.value || "pow-writing";
   const note = donationNote?.value?.trim() || "";
   const totalDonatedSats = getTotalDonatedSats() + sats;
+  const accumulatedSats = getSessionAccumulatedSats();
+  const totalAccumulatedSats = getDonationSatsForScope();
   const payload = buildDonationPayload({
     dataUrl,
     plan: lastSession.plan,
@@ -1637,16 +1642,41 @@ const openAccumulatedDonationPayment = async () => {
     donationScopeValue: "total",
     donationNoteValue: note,
     totalDonatedSats,
+    accumulatedSats,
+    totalAccumulatedSats,
   });
 
-  // 적립액 기부는 인보이스만 생성 (자동 공유 안 함)
-  // 사용자가 결제 완료 후 수동으로 "디스코드에 공유하기" 버튼을 눌러야 함
-  await openLightningWalletWithPayload(payload);
+  // 적립액 기부는 Blink 웹훅이 자동으로 디스코드에 공유
+  // 결제 완료 후 localStorage 업데이트 및 UI 갱신
+  await openLightningWalletWithPayload(payload, {
+    onSuccess: () => {
+      // pending daily에서 적립액 차감
+      const pending = getPendingDaily();
+      delete pending[todayKey];
+      savePendingDaily(pending);
 
-  // 안내 메시지 표시
-  if (shareStatus) {
-    shareStatus.textContent = "결제 완료 후 '디스코드에 공유하기' 버튼을 눌러주세요.";
-  }
+      // 기부 기록 저장
+      saveDonationHistoryEntry({
+        date: todayKey,
+        sats,
+        minutes: Math.floor(donationSeconds / 60),
+        seconds: donationSeconds,
+        mode,
+        scope: "total",
+        note,
+        isPaid: true,
+      });
+
+      // UI 업데이트
+      updateAccumulatedSats();
+      updateTodayDonationSummary();
+      renderDonationHistoryPage();
+
+      if (shareStatus) {
+        shareStatus.textContent = "적립액 기부가 완료되었습니다!";
+      }
+    },
+  });
 };
 
 const buildLightningUri = (invoice) => `lightning:${invoice}`;
@@ -1739,6 +1769,17 @@ const closeWalletSelection = () => {
   if (!walletModal) {
     return;
   }
+
+  // 결제 완료 후 콜백 실행 (사용자가 모달을 닫으면 결제가 완료된 것으로 간주)
+  if (pendingOnSuccessCallback && typeof pendingOnSuccessCallback === "function") {
+    try {
+      pendingOnSuccessCallback();
+    } catch (error) {
+      console.error("결제 완료 콜백 실행 중 오류:", error);
+    }
+    pendingOnSuccessCallback = null;
+  }
+
   walletModal.classList.add("hidden");
   walletModal.setAttribute("aria-hidden", "true");
   walletModal.dataset.invoice = "";
@@ -2212,52 +2253,22 @@ cameraCapture?.addEventListener("change", (event) => {
   event.target.value = "";
 });
 
-const drawBadge = async (sessionOverride = null) => {
+const drawBadge = (sessionOverride = null) => {
   const context = badgeCanvas.getContext("2d");
   context.clearRect(0, 0, badgeCanvas.width, badgeCanvas.height);
+  context.fillStyle = "#0f172a";
+  context.fillRect(0, 0, badgeCanvas.width, badgeCanvas.height);
 
-  // 배경 이미지 결정: 사용자 사진 > 기본 배경 이미지 > 그라디언트
-  let backgroundImage = photoSource;
-
-  // 사진이 없고 기본 이미지가 아직 로드되지 않았으면 로드 대기
-  if (!backgroundImage && !defaultBackgroundImage) {
-    console.log("⏳ 기본 배경 이미지 로드 대기 중...");
-    await ensureDefaultBackgroundLoaded();
-  }
-
-  backgroundImage = photoSource || defaultBackgroundImage;
-
-  if (backgroundImage) {
-    // 사용자가 찍은 사진이나 기본 배경 이미지가 있으면 배경으로 사용
-    context.fillStyle = "#0f172a";
-    context.fillRect(0, 0, badgeCanvas.width, badgeCanvas.height);
+  if (photoSource) {
     const ratio = Math.min(
-      badgeCanvas.width / backgroundImage.width,
-      badgeCanvas.height / backgroundImage.height
+      badgeCanvas.width / photoSource.width,
+      badgeCanvas.height / photoSource.height
     );
-    const width = backgroundImage.width * ratio;
-    const height = backgroundImage.height * ratio;
+    const width = photoSource.width * ratio;
+    const height = photoSource.height * ratio;
     const x = (badgeCanvas.width - width) / 2;
     const y = (badgeCanvas.height - height) / 2;
-    context.drawImage(backgroundImage, x, y, width, height);
-  } else {
-    // 아무 이미지도 없으면 사이버펑크 스타일 그라디언트 배경 사용
-    const gradient = context.createLinearGradient(0, 0, badgeCanvas.width, badgeCanvas.height);
-    gradient.addColorStop(0, "#0f172a");    // 어두운 청회색
-    gradient.addColorStop(0.3, "#1e293b");  // 진한 회색
-    gradient.addColorStop(0.6, "#f97316");  // 오렌지 (비트코인 컬러)
-    gradient.addColorStop(1, "#ea580c");    // 진한 오렌지
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, badgeCanvas.width, badgeCanvas.height);
-
-    // 비트코인 심볼 ₿ 워터마크 추가
-    context.save();
-    context.globalAlpha = 0.1;
-    context.fillStyle = "#ffffff";
-    context.font = "bold 400px sans-serif";
-    context.textAlign = "center";
-    context.fillText("₿", badgeCanvas.width / 2, badgeCanvas.height / 2 + 100);
-    context.restore();
+    context.drawImage(photoSource, x, y, width, height);
   }
 
   const lastSession = sessionOverride || getLastSessionSeconds();
@@ -2341,14 +2352,9 @@ const getBadgeDataUrl = () => {
 
 const shareToDiscordOnly = async () => {
   let dataUrl = getBadgeDataUrl();
-  // 인증카드가 생성되지 않았으면 자동으로 생성 (기본 배경 이미지 사용)
+  // 인증카드가 없으면 오류 메시지
   if (!dataUrl || dataUrl === "data:,") {
-    await drawBadge();
-    dataUrl = getBadgeDataUrl();
-  }
-  // 그래도 생성되지 않으면 오류
-  if (!dataUrl || dataUrl === "data:,") {
-    alert("인증 카드를 생성할 수 없습니다.");
+    alert("먼저 인증 카드를 생성해주세요.");
     return;
   }
   if (shareStatus) {
@@ -2432,9 +2438,13 @@ const shareToDiscord = async () => {
   await openLightningWallet();
 };
 
-generateButton?.addEventListener("click", async () => {
-  // photoSource가 없어도 기본 배경 이미지로 인증카드 생성
-  await drawBadge();
+generateButton?.addEventListener("click", () => {
+  // photoSource가 없으면 오류 메시지
+  if (!photoSource) {
+    alert("먼저 사진 또는 동영상을 촬영하거나 업로드해주세요.");
+    return;
+  }
+  drawBadge();
 });
 
 shareDiscordButton?.addEventListener("click", shareToDiscord);
@@ -2538,43 +2548,6 @@ const loadSession = async ({ ignoreUrlFlag = false } = {}) => {
   }
 };
 
-// 기본 배경 이미지 로드 Promise
-let defaultBackgroundLoadPromise = null;
-
-const loadDefaultBackgroundImage = () => {
-  if (defaultBackgroundLoadPromise) {
-    return defaultBackgroundLoadPromise;
-  }
-
-  defaultBackgroundLoadPromise = new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous"; // CORS 허용
-    img.onload = () => {
-      defaultBackgroundImage = img;
-      console.log("✅ 기본 배경 이미지 로드 완료:", img.src, "크기:", img.width, "x", img.height);
-      resolve(img);
-    };
-    img.onerror = (e) => {
-      console.error("❌ 기본 배경 이미지 로드 실패:", img.src, e);
-      console.warn("⚠️ 그라디언트 배경을 사용합니다.");
-      reject(e);
-    };
-    // GitHub raw URL 사용 (더 안정적)
-    img.src = "https://raw.githubusercontent.com/AsadoConKimchi/Citadel_POW/main/default-background.jpg";
-    console.log("🔄 기본 배경 이미지 로드 시작:", img.src);
-  });
-
-  return defaultBackgroundLoadPromise;
-};
-
-// 기본 배경 이미지 로드 보장 (비활성화 - 그라디언트 사용)
-const ensureDefaultBackgroundLoaded = async () => {
-  // 기본 이미지 로딩 비활성화, 항상 null 반환하여 그라디언트 사용
-  return null;
-};
-
-// 기본 배경 이미지 로딩 비활성화 (8.7MB로 너무 큼, 그라디언트 사용)
-// loadDefaultBackgroundImage();
 loadSession();
 promptPendingDailyDonation();
 if (discordRefresh) {
