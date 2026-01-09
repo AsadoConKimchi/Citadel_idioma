@@ -24,10 +24,16 @@
     <main>
       <section class="grid single">
         <div class="card">
-          <h2>현재 누적 금액</h2>
+          <h2>나의 기부현황</h2>
           <div class="stack">
-            <p class="pill">누적 금액: <strong id="donation-page-total">0 sats</strong></p>
-            <button id="donation-page-pay" class="primary">기부하기</button>
+            <div class="row">
+              <span class="pill">누적 기부액: <strong id="donation-page-donated">0 sats</strong></span>
+            </div>
+            <div class="row" id="donation-page-accumulated-row">
+              <span class="pill">현재 적립액: <strong id="donation-page-accumulated">0 sats</strong></span>
+            </div>
+            <button id="donation-page-pay" class="primary">적립액 기부하기</button>
+            <p class="hint">현재 적립액을 기부할 수 있습니다.</p>
           </div>
         </div>
         <div class="card">

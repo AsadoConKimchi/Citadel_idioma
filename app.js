@@ -56,7 +56,9 @@ const donationHistory = document.getElementById("donation-history");
 const donationHistoryEmpty = document.getElementById("donation-history-empty");
 const donationPagination = document.getElementById("donation-pagination");
 const currentTotalSats = document.getElementById("current-total-sats");
-const donationPageTotal = document.getElementById("donation-page-total");
+const donationPageDonated = document.getElementById("donation-page-donated");
+const donationPageAccumulated = document.getElementById("donation-page-accumulated");
+const donationPageAccumulatedRow = document.getElementById("donation-page-accumulated-row");
 const donationPagePay = document.getElementById("donation-page-pay");
 const todayTotalDonated = document.getElementById("today-total-donated");
 const todayAccumulatedRow = document.getElementById("today-accumulated-row");
@@ -101,6 +103,23 @@ const donationControls = [
 
 // 토글 버튼 초기화
 const toggleButtons = document.querySelectorAll('.toggle-button');
+const donationScopeKey = 'citadel-donation-scope';
+
+// 저장된 토글 상태 복원
+const savedDonationScope = localStorage.getItem(donationScopeKey) || 'session';
+toggleButtons.forEach(button => {
+  const value = button.getAttribute('data-value');
+  if (value === savedDonationScope) {
+    button.classList.add('active');
+    if (donationScope) {
+      donationScope.value = value;
+    }
+  } else {
+    button.classList.remove('active');
+  }
+});
+
+// 토글 버튼 클릭 이벤트
 toggleButtons.forEach(button => {
   button.addEventListener('click', () => {
     // 모든 버튼에서 active 클래스 제거
@@ -111,6 +130,8 @@ toggleButtons.forEach(button => {
     const value = button.getAttribute('data-value');
     if (donationScope) {
       donationScope.value = value;
+      // localStorage에 저장
+      localStorage.setItem(donationScopeKey, value);
       // 기존 change 이벤트 트리거
       donationScope.dispatchEvent(new Event('change'));
     }
@@ -763,6 +784,12 @@ const getDonationSeconds = () => {
   if (scope === "session") {
     return getLastSessionSeconds().durationSeconds;
   }
+  if (scope === "total") {
+    // 적립 후 기부 모드: pending daily에서 적립된 시간 사용
+    const pending = getPendingDaily();
+    const entry = pending[todayKey];
+    return entry ? entry.seconds : 0;
+  }
   if (scope === "daily") {
     const available = getStoredTotal() - getDonatedSecondsByScope({ scope, dateKey: todayKey });
     return Math.max(0, available);
@@ -903,8 +930,14 @@ const updateAccumulatedSats = () => {
       getDonationScopeValue() !== "total"
     );
   }
-  if (donationPageTotal) {
-    donationPageTotal.textContent = `${sats} sats`;
+  if (donationPageAccumulated) {
+    donationPageAccumulated.textContent = `${sats} sats`;
+  }
+  if (donationPageAccumulatedRow) {
+    donationPageAccumulatedRow.classList.toggle("hidden", sats <= 0);
+  }
+  if (donationPagePay) {
+    donationPagePay.classList.toggle("hidden", sats <= 0);
   }
   if (todayAccumulatedSats) {
     todayAccumulatedSats.textContent = `${sats} sats`;
@@ -965,6 +998,9 @@ const updateDonationTotals = () => {
   const total = getTotalDonatedSats();
   if (satsTotalAllEl) {
     satsTotalAllEl.textContent = `${total} sats`;
+  }
+  if (donationPageDonated) {
+    donationPageDonated.textContent = `${total} sats`;
   }
   updateAccumulatedSats();
   updateTodayDonationSummary();
@@ -2105,7 +2141,7 @@ shareDiscordButton?.addEventListener("click", shareToDiscord);
 todayAccumulatedPay?.addEventListener("click", openAccumulatedDonationPayment);
 
 donationPagePay?.addEventListener("click", () => {
-  openLightningWallet();
+  openAccumulatedDonationPayment();
 });
 
 window.addEventListener("beforeunload", () => {
