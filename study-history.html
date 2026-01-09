@@ -3,54 +3,89 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Citadel Scholarship · 공부 기록</title>
+    <title>Citadel Scholarship · Citadel POW</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <nav class="site-nav">
       <a href="index.html">오늘</a>
-      <a href="study-history.html" class="active">공부 기록</a>
+      <a href="study-history.html" class="active">Citadel POW</a>
       <a href="donation-history.html">기부 기록</a>
     </nav>
 
     <header class="hero compact">
       <div>
         <p class="eyebrow">Citadel Scholarship</p>
-        <h1>날짜별 공부 기록 보기</h1>
-        <p class="subtitle">스크롤로 날짜를 선택해 해당 날짜의 공부 기록을 확인하세요.</p>
+        <h1>Citadel POW 대시보드</h1>
+        <p class="subtitle">POW 분야별 기록과 인기 순위를 확인하세요.</p>
       </div>
     </header>
 
     <main>
       <section class="grid single">
         <div class="card">
-          <h2>공부 기록</h2>
+          <!-- POW 분야 선택 -->
           <div class="stack">
-            <div class="leaderboard">
-              <p class="leaderboard-title">누적 공부 시간 TOP 5</p>
-              <ol id="study-leaderboard" class="leaderboard-list"></ol>
-            </div>
             <label>
-              날짜 선택
-              <select id="study-date-select" class="scroll-select" size="6"></select>
+              POW 분야 선택
+              <select id="pow-category-filter">
+                <option value="all">전체</option>
+                <option value="pow-writing">✒️ 글쓰기</option>
+                <option value="pow-music">🎵 음악</option>
+                <option value="pow-study">📝 공부</option>
+                <option value="pow-art">🎨 그림</option>
+                <option value="pow-reading">📚 독서</option>
+                <option value="pow-service">✝️ 봉사</option>
+              </select>
             </label>
-            <p class="hint">
-              선택한 날짜: <strong id="study-history-date">-</strong>
-            </p>
-            <div id="study-history-list" class="session-items"></div>
-            <p id="study-history-empty" class="hint">선택한 날짜의 공부 기록이 없습니다.</p>
+
+            <!-- 나의 기록 / 인기 기록 서브탭 -->
+            <div class="toggle-group">
+              <button type="button" class="toggle-button active" data-tab="my-records">나의 기록</button>
+              <button type="button" class="toggle-button" data-tab="popular-records">인기 기록</button>
+            </div>
+
+            <!-- 나의 기록 탭 -->
+            <div id="my-records-tab" class="tab-content active">
+              <div class="stack">
+                <div class="leaderboard">
+                  <p class="leaderboard-title">나의 누적 POW 시간</p>
+                  <ol id="my-study-leaderboard" class="leaderboard-list"></ol>
+                </div>
+                <label>
+                  날짜 선택
+                  <select id="study-date-select" class="scroll-select" size="6"></select>
+                </label>
+                <p class="hint">
+                  선택한 날짜: <strong id="study-history-date">-</strong>
+                </p>
+                <div id="study-history-list" class="session-items"></div>
+                <p id="study-history-empty" class="hint">선택한 날짜의 공부 기록이 없습니다.</p>
+              </div>
+            </div>
+
+            <!-- 인기 기록 탭 -->
+            <div id="popular-records-tab" class="tab-content hidden">
+              <div class="stack">
+                <div class="leaderboard">
+                  <p class="leaderboard-title">디스코드 반응 수 TOP 10</p>
+                  <ol id="popular-leaderboard" class="leaderboard-list"></ol>
+                </div>
+                <p class="hint">디스코드에 공유된 POW 인증 카드의 반응(👍, ❤️ 등) 수를 기준으로 순위가 매겨집니다.</p>
+                <div id="popular-records-list" class="session-items"></div>
+                <p id="popular-records-empty" class="hint">아직 인기 기록이 없습니다.</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
     </main>
 
-    <footer>
-      <p>Citadel Scholarship · 공부 기록 페이지</p>
-    </footer>
-
     <!-- 토글 상태를 위한 hidden input -->
     <input type="hidden" id="donation-scope" value="session" />
 
-    <script src="app.js"></script>
+    <script src="config.js"></script>
+    <script src="api.js"></script>
+    <script src="study-history-app.js"></script>
   </body>
 </html>
