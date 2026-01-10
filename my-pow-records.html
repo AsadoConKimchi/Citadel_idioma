@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>나의 POW 기록 · Citadel POW</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <nav class="site-nav">
+      <a href="index.html">오늘</a>
+      <a href="study-history.html">Citadel POW</a>
+      <a href="my-pow-records.html" class="active">나의 POW 기록</a>
+      <a href="donation-history.html">기부 기록</a>
+    </nav>
+
+    <header class="hero compact">
+      <div>
+        <p class="eyebrow">Citadel Scholarship</p>
+        <h1>나의 POW 기록</h1>
+        <p class="subtitle">나의 POW 인증 카드를 확인하고 필터링하세요.</p>
+      </div>
+    </header>
+
+    <main>
+      <section class="grid single">
+        <div class="card">
+          <div class="stack">
+            <!-- 로그인 안내 -->
+            <div id="login-required" class="hint hidden">
+              로그인이 필요한 서비스입니다.
+            </div>
+
+            <!-- 필터 패널 -->
+            <div id="filter-panel" class="filter-panel">
+              <div class="filter-row">
+                <label class="filter-label">분야</label>
+                <select id="category-filter" class="filter-select">
+                  <option value="all">전체</option>
+                  <option value="pow-writing">✒️ 글쓰기</option>
+                  <option value="pow-music">🎵 음악</option>
+                  <option value="pow-study">📝 공부</option>
+                  <option value="pow-art">🎨 그림</option>
+                  <option value="pow-reading">📚 독서</option>
+                  <option value="pow-service">✝️ 봉사</option>
+                </select>
+              </div>
+
+              <div class="filter-row">
+                <label class="filter-label">날짜</label>
+                <input type="date" id="date-filter" class="filter-input" />
+              </div>
+
+              <div class="filter-row">
+                <label class="filter-label">기간</label>
+                <div class="filter-buttons">
+                  <button type="button" class="filter-button" data-period="today">오늘</button>
+                  <button type="button" class="filter-button" data-period="week">이번주</button>
+                  <button type="button" class="filter-button" data-period="month">이번달</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 통계 요약 -->
+            <div id="stats-summary" class="stats-summary hidden">
+              <div class="stat-item">
+                <span class="stat-label">총 POW 시간</span>
+                <span class="stat-value" id="total-minutes">0분</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">세션 수</span>
+                <span class="stat-value" id="session-count">0개</span>
+              </div>
+            </div>
+
+            <!-- Carousel -->
+            <div id="records-carousel-container" class="hidden">
+              <div class="pow-carousel">
+                <button class="carousel-btn carousel-btn-prev" id="records-carousel-prev">‹</button>
+                <div class="carousel-viewport">
+                  <div class="carousel-track" id="records-carousel-track"></div>
+                </div>
+                <button class="carousel-btn carousel-btn-next" id="records-carousel-next">›</button>
+              </div>
+              <div class="carousel-controls">
+                <div class="carousel-indicator" id="records-carousel-indicator"></div>
+              </div>
+            </div>
+
+            <!-- 빈 상태 메시지 -->
+            <p id="records-empty" class="hint hidden">선택한 조건에 맞는 POW 기록이 없습니다.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 공통 스크립트 -->
+    <script src="config.js"></script>
+    <script src="common.js"></script>
+    <script src="api.js"></script>
+    <script src="components/carousel.js"></script>
+    <script src="components/filter.js"></script>
+    <script src="my-pow-records-app.js"></script>
+  </body>
+</html>
