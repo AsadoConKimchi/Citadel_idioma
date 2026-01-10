@@ -259,6 +259,15 @@ select {
   display: none;
 }
 
+/* Tab Content */
+.tab-content {
+  display: block;
+}
+
+.tab-content.hidden {
+  display: none;
+}
+
 button,
 .button-link,
 .file {

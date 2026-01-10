@@ -6,8 +6,8 @@
 // ============================================
 
 const powCategoryFilter = document.getElementById("pow-category-filter");
-const dashboardTab = document.getElementById("dashboard-tab");
-const popularRecordsTab = document.getElementById("popular-records-tab");
+const dashboardTab = document.getElementById("dashboard");
+const popularRecordsTab = document.getElementById("popular-records");
 
 // 대시보드 요소
 const dashboardLeaderboardTitle = document.getElementById("dashboard-leaderboard-title");
@@ -113,23 +113,7 @@ function renderPopularCard(post, index, currentIndex) {
 // 컴포넌트 초기화
 // ============================================
 
-// TabSwitcher 초기화
-const tabSwitcher = new TabSwitcher({
-  tabButtons: tabButtons,
-  tabContents: [dashboardTab, popularRecordsTab],
-  initialTab: "dashboard",
-  onTabChange: (tabName) => {
-    currentTab = tabName;
-    if (tabName === "dashboard") {
-      loadDashboard();
-    } else if (tabName === "popular-records") {
-      loadPopularRecords();
-    }
-  },
-  storageKey: "citadel-pow-tab",
-});
-
-// Leaderboard 컴포넌트 초기화
+// Leaderboard 컴포넌트 초기화 (TabSwitcher보다 먼저 초기화)
 const leaderboard = new Leaderboard({
   container: dashboardLeaderboard,
   type: currentRankingType,
@@ -145,6 +129,22 @@ const popularCarousel = new Carousel({
   nextButton: popularCarouselNext,
   indicator: popularCarouselIndicator,
   renderCard: renderPopularCard,
+});
+
+// TabSwitcher 초기화 (컴포넌트들이 모두 초기화된 후 마지막에 초기화)
+const tabSwitcher = new TabSwitcher({
+  tabButtons: tabButtons,
+  tabContents: [dashboardTab, popularRecordsTab],
+  initialTab: "dashboard",
+  onTabChange: (tabName) => {
+    currentTab = tabName;
+    if (tabName === "dashboard") {
+      loadDashboard();
+    } else if (tabName === "popular-records") {
+      loadPopularRecords();
+    }
+  },
+  storageKey: "citadel-pow-tab",
 });
 
 // ============================================
