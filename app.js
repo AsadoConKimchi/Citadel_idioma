@@ -1655,6 +1655,11 @@ const openLightningWallet = async () => {
     ? Math.round((totalMinutes / lastSession.goalMinutes) * 100)
     : 0;
 
+  // 현재 기부 타입 및 정보 저장
+  currentDonationScope = scope;
+  currentDonationSats = sats;
+  currentDonationPayload = payload;
+
   await openLightningWalletWithPayload(payload, {
     onSuccess: async () => {
       // Discord 공유 먼저 실행
@@ -1746,6 +1751,11 @@ const openAccumulatedDonationPayment = async () => {
   const achievementRate = lastSession.goalMinutes > 0
     ? Math.round((totalMinutes / lastSession.goalMinutes) * 100)
     : 0;
+
+  // 현재 기부 타입 및 정보 저장 (적립금 기부)
+  currentDonationScope = "accumulated";
+  currentDonationSats = sats;
+  currentDonationPayload = payload;
 
   // 결제 완료 후 Discord 공유 및 localStorage 업데이트
   await openLightningWalletWithPayload(payload, {
@@ -1861,6 +1871,9 @@ const renderWalletInvoice = (invoice) => {
 // 결제 완료 후 실행할 콜백 저장
 let pendingOnSuccessCallback = null;
 let currentPaymentHash = null;
+let currentDonationScope = null; // 'session', 'total', 'accumulated'
+let currentDonationSats = 0;
+let currentDonationPayload = null;
 
 const openWalletSelection = ({ invoice, message, onSuccess } = {}) => {
   // onSuccess 콜백 저장
@@ -1894,68 +1907,111 @@ const closeWalletSelection = async () => {
     return;
   }
 
-  // 결제 완료 확인
+  // 결제 상태 확인
   if (pendingOnSuccessCallback && typeof pendingOnSuccessCallback === "function") {
-    const confirmed = window.confirm("결제를 완료하셨습니까?\n\n완료하지 않았다면 '취소'를 눌러주세요.");
-    if (confirmed) {
-      // Blink API로 결제 상태 확인
-      if (!currentPaymentHash) {
-        alert("Payment hash가 없습니다. 결제 상태를 확인할 수 없습니다.");
-        pendingOnSuccessCallback = null;
-        currentPaymentHash = null;
-        return;
-      }
-
-      try {
-        // 결제 확인 중 표시
-        if (walletStatus) {
-          walletStatus.textContent = "결제 상태를 확인하는 중입니다...";
-        }
-
-        const checkResponse = await fetch(`${window.BACKEND_API_URL}/api/blink/check-invoice`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            paymentHash: currentPaymentHash,
-          }),
-        });
-
-        if (!checkResponse.ok) {
-          throw new Error("결제 상태 확인에 실패했습니다.");
-        }
-
-        const checkResult = await checkResponse.json();
-        if (!checkResult?.success) {
-          throw new Error("결제 상태 확인 응답이 올바르지 않습니다.");
-        }
-
-        const isPaid = checkResult.data?.paid;
-
-        if (isPaid) {
-          // 결제 확인됨 - onSuccess 콜백 실행
-          try {
-            await pendingOnSuccessCallback();
-          } catch (error) {
-            console.error("결제 완료 콜백 실행 중 오류:", error);
-            alert("기부 기록 저장 중 오류가 발생했습니다: " + error.message);
-          }
-        } else {
-          // 결제 안됨
-          alert("아직 결제가 확인되지 않았습니다.\n\n지갑에서 결제를 완료한 후 다시 시도해주세요.");
-          // 모달을 닫지 않고 return
-          return;
-        }
-      } catch (error) {
-        console.error("결제 확인 중 오류:", error);
-        alert("결제 확인 중 오류가 발생했습니다: " + error.message);
-        // 모달을 닫지 않고 return
-        return;
-      }
+    // Blink API로 결제 상태 확인
+    if (!currentPaymentHash) {
+      alert("Payment hash가 없습니다. 결제 상태를 확인할 수 없습니다.");
+      pendingOnSuccessCallback = null;
+      currentPaymentHash = null;
+      currentDonationScope = null;
+      currentDonationSats = 0;
+      currentDonationPayload = null;
+      return;
     }
 
-    // 콜백 및 paymentHash 초기화
+    try {
+      // 결제 확인 중 표시
+      if (walletStatus) {
+        walletStatus.textContent = "결제 상태를 확인하는 중입니다...";
+      }
+
+      const checkResponse = await fetch(`${window.BACKEND_API_URL}/api/blink/check-invoice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentHash: currentPaymentHash,
+        }),
+      });
+
+      if (!checkResponse.ok) {
+        throw new Error("결제 상태 확인에 실패했습니다.");
+      }
+
+      const checkResult = await checkResponse.json();
+      if (!checkResult?.success) {
+        throw new Error("결제 상태 확인 응답이 올바르지 않습니다.");
+      }
+
+      const isPaid = checkResult.data?.paid;
+
+      if (isPaid) {
+        // 결제 확인됨 - onSuccess 콜백 실행
+        try {
+          await pendingOnSuccessCallback();
+        } catch (error) {
+          console.error("결제 완료 콜백 실행 중 오류:", error);
+          alert("기부 기록 저장 중 오류가 발생했습니다: " + error.message);
+        }
+      } else {
+        // 결제 안됨 - scope에 따라 다른 처리
+        if (currentDonationScope === "session") {
+          // 즉시기부 실패
+          const retry = window.confirm("기부가 되지 않았습니다. 다시 시도할까요?");
+          if (retry) {
+            // 모달을 닫지 않고 return
+            return;
+          } else {
+            // 적립하기 확인
+            const accumulate = window.confirm("적립하시겠습니까?");
+            if (accumulate) {
+              // 적립액에 추가
+              const pending = getPendingDaily();
+              const todayKey = new Date().toISOString().split("T")[0];
+              if (!pending[todayKey]) {
+                pending[todayKey] = {
+                  sats: currentDonationSats,
+                  seconds: currentDonationPayload?.minutes * 60 || 0,
+                  mode: currentDonationPayload?.donationMode || "pow-writing",
+                  plan: currentDonationPayload?.plan || "",
+                  goalMinutes: currentDonationPayload?.goalRate ? parseInt(currentDonationPayload.goalRate) : 0,
+                  note: currentDonationPayload?.donationNote || "",
+                };
+              } else {
+                pending[todayKey].sats += currentDonationSats;
+              }
+              savePendingDaily(pending);
+              showAccumulationToast(`${currentDonationSats}sats가 적립되었습니다.`);
+
+              // UI 업데이트
+              updateAccumulatedSats();
+              updateTodayDonationSummary();
+            }
+          }
+        } else if (currentDonationScope === "accumulated") {
+          // 적립금 기부 실패
+          const retry = window.confirm("기부가 되지 않았습니다. 다시 시도할까요?");
+          if (retry) {
+            // 모달을 닫지 않고 return
+            return;
+          }
+          // "다음에 할게요" 선택 → 적립액 유지하고 모달 닫기
+        }
+        // scope === 'total' (적립 후 기부)는 여기서 처리할 필요 없음
+      }
+    } catch (error) {
+      console.error("결제 확인 중 오류:", error);
+      alert("결제 확인 중 오류가 발생했습니다: " + error.message);
+      // 모달을 닫지 않고 return
+      return;
+    }
+
+    // 콜백 및 상태 초기화
     pendingOnSuccessCallback = null;
     currentPaymentHash = null;
+    currentDonationScope = null;
+    currentDonationSats = 0;
+    currentDonationPayload = null;
   }
 
   // 모달 닫기
