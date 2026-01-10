@@ -684,8 +684,27 @@ app.get("/auth/discord/callback", async (req, res) => {
       });
     });
   } catch (error) {
-    res.status(500).send("Discord 인증 중 오류가 발생했습니다.");
+    console.error("Discord OAuth 콜백 에러:", error);
+    console.error("에러 상세:", {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
+    res.status(500).send(`Discord 인증 중 오류가 발생했습니다: ${error.message}`);
   }
+});
+
+// 디버깅용 엔드포인트 (환경변수 확인)
+app.get("/api/debug/env", (req, res) => {
+  res.json({
+    hasDiscordConfig,
+    discordClientId: discordClientId ? `${discordClientId.slice(0, 10)}...` : 'MISSING',
+    discordClientSecret: discordClientSecret ? 'SET (length: ' + discordClientSecret.length + ')' : 'MISSING',
+    discordRedirectUri: discordRedirectUri || 'MISSING',
+    discordGuildId: DISCORD_GUILD_ID ? `${DISCORD_GUILD_ID.slice(0, 10)}...` : 'MISSING',
+    discordRoleId: DISCORD_ROLE_ID ? `${DISCORD_ROLE_ID.slice(0, 10)}...` : 'MISSING',
+    sessionSecret: SESSION_SECRET ? 'SET' : 'MISSING',
+  });
 });
 
 app.get("/api/session", (req, res) => {
