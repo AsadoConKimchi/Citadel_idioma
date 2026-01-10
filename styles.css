@@ -1208,6 +1208,7 @@ body.timer-modal-open {
   min-width: 100%;
   flex-shrink: 0;
   padding: 8px;
+  box-sizing: border-box;
 }
 
 .carousel-card img.pow-badge-image {
