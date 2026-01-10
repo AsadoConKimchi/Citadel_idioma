@@ -74,18 +74,24 @@ const StudySessionAPI = {
   async create(discordId, sessionData) {
     const payload = {
       discord_id: discordId,
+
+      // POW 정보
+      donation_mode: sessionData.donationMode || 'pow-writing',
+      plan_text: sessionData.planText || '',
+
+      // 시간 정보
       start_time: sessionData.startTime,
       end_time: sessionData.endTime,
       duration_minutes: sessionData.durationMinutes,
-    };
+      goal_minutes: sessionData.goalMinutes || 0,
+      achievement_rate: sessionData.achievementRate || 0,
 
-    // optional 필드는 값이 있을 때만 포함
-    if (sessionData.planText) {
-      payload.plan_text = sessionData.planText;
-    }
-    if (sessionData.photoUrl) {
-      payload.photo_url = sessionData.photoUrl;
-    }
+      // 인증카드
+      photo_url: sessionData.photoUrl || null,
+
+      // 기부 연결
+      donation_id: sessionData.donationId || null,
+    };
 
     console.log('📤 공부 세션 페이로드:', payload);
 
@@ -146,18 +152,35 @@ const DonationAPI = {
   async create(discordId, donationData) {
     const payload = {
       discord_id: discordId,
+
+      // 기부 정보
       amount: donationData.amount,
       currency: donationData.currency || 'SAT',
-      date: donationData.date || new Date().toISOString().split('T')[0],
-      duration_seconds: donationData.durationSeconds,
-      duration_minutes: donationData.durationMinutes,
       donation_mode: donationData.donationMode || 'pow-writing',
       donation_scope: donationData.donationScope || 'session',
-      session_id: donationData.sessionId,
-      note: donationData.note,
-      message: donationData.message,
-      transaction_id: donationData.transactionId,
+      note: donationData.note || null,
+
+      // POW 정보 (기부 시점 스냅샷)
+      plan_text: donationData.planText || null,
+      duration_minutes: donationData.durationMinutes || null,
+      duration_seconds: donationData.durationSeconds || null,
+      goal_minutes: donationData.goalMinutes || null,
+      achievement_rate: donationData.achievementRate || null,
+      photo_url: donationData.photoUrl || null,
+
+      // 누적 정보 (기부 시점 스냅샷)
+      accumulated_sats: donationData.accumulatedSats || null,
+      total_accumulated_sats: donationData.totalAccumulatedSats || null,
+      total_donated_sats: donationData.totalDonatedSats || null,
+
+      // 결제 정보
+      transaction_id: donationData.transactionId || null,
       status: donationData.status || 'pending',
+      date: donationData.date || new Date().toISOString().split('T')[0],
+      session_id: donationData.sessionId || null,
+
+      // Deprecated
+      message: donationData.message || null,
     };
 
     return apiRequest('/api/donations', {

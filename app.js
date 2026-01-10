@@ -826,17 +826,27 @@ const finishSession = () => {
       const modeEmoji = getCategoryLabel(currentMode);
       const planWithCategory = modeEmoji ? `${modeEmoji} ${plan}` : plan;
 
+      // 달성률 계산
+      const actualMinutes = Math.round(elapsedSeconds / 60);
+      const achievementRate = goalMinutes > 0
+        ? Math.round((actualMinutes / goalMinutes) * 100)
+        : 0;
+
       // 현재 로그인한 사용자 정보 가져오기
       try {
         const res = await fetch('/api/session');
         const sessionData = await res.json();
         if (sessionData.authenticated && sessionData.user?.id) {
           await StudySessionAPI.create(sessionData.user.id, {
+            donationMode: currentMode,
+            planText: planWithCategory,
             startTime: startTime.toISOString(),
             endTime: endTime.toISOString(),
-            durationMinutes: Math.round(elapsedSeconds / 60),
-            planText: planWithCategory,
+            durationMinutes: actualMinutes,
+            goalMinutes: goalMinutes || 0,
+            achievementRate: achievementRate,
             photoUrl: photoDataUrl,
+            donationId: null,
           });
           console.log('공부 세션이 백엔드에 저장되었습니다.');
         }
@@ -1363,6 +1373,15 @@ const saveDonationHistoryEntry = async ({
   sessionId = "",
   note = "",
   isPaid = true,
+  // POW 정보 (선택적)
+  planText = null,
+  goalMinutes = null,
+  achievementRate = null,
+  photoUrl = null,
+  // 누적 정보 (선택적)
+  accumulatedSats = null,
+  totalAccumulatedSats = null,
+  totalDonatedSats = null,
 }) => {
   const history = getDonationHistory();
   const entry = {
@@ -1395,8 +1414,18 @@ const saveDonationHistoryEntry = async ({
         donationScope: scope,
         sessionId: sessionId,
         note: note,
-        transactionId: '', // 나중에 실제 트랜잭션 ID 추가 가능
-        status: 'completed', // 결제 완료된 기부
+        // POW 정보
+        planText: planText,
+        goalMinutes: goalMinutes,
+        achievementRate: achievementRate,
+        photoUrl: photoUrl,
+        // 누적 정보
+        accumulatedSats: accumulatedSats,
+        totalAccumulatedSats: totalAccumulatedSats,
+        totalDonatedSats: totalDonatedSats,
+        // 결제 정보
+        transactionId: '',
+        status: 'completed',
       });
       console.log('기부 기록이 API에 저장되었습니다.');
     } catch (error) {
