@@ -270,15 +270,6 @@ const updateStats = () => {
  */
 function renderRecordCard(session, index, currentIndex) {
   const isActive = index === currentIndex;
-  // discord_posts에서 photo_url 가져오기 (없으면 session.photo_url 사용)
-  let photoUrl = session.photo_url;
-  if (session.discord_posts) {
-    if (Array.isArray(session.discord_posts) && session.discord_posts.length > 0) {
-      photoUrl = session.discord_posts[0].photo_url || photoUrl;
-    } else if (typeof session.discord_posts === 'object' && session.discord_posts.photo_url) {
-      photoUrl = session.discord_posts.photo_url;
-    }
-  }
   const seconds = session.duration_seconds ?? (session.duration_minutes ? session.duration_minutes * 60 : 0);
   const timeText = seconds > 0 ? formatDuration(seconds, false) : "0분";
   const plan = session.plan_text || "계획 없음";
@@ -286,35 +277,38 @@ function renderRecordCard(session, index, currentIndex) {
   const categoryEmoji = getCategoryEmoji(session.donation_mode);
   const categoryName = getCategoryName(session.donation_mode);
 
-  if (photoUrl && photoUrl !== "data:,") {
-    // 인증카드 이미지가 있으면 이미지 표시 (인기 기록과 동일한 구조)
-    return `
-      <div class="carousel-card ${isActive ? 'active' : ''}" data-index="${index}">
+  // Discord에 공유했는지 확인
+  let discordMessageUrl = null;
+  if (session.discord_posts) {
+    const discordPost = Array.isArray(session.discord_posts)
+      ? session.discord_posts[0]
+      : session.discord_posts;
+
+    if (discordPost && discordPost.message_id && discordPost.channel_id) {
+      // Discord 서버 ID (TODO: 환경변수로 관리)
+      const DISCORD_GUILD_ID = '1452301614894420044'; // 임시값, 실제 서버 ID로 교체 필요
+      discordMessageUrl = `https://discord.com/channels/${DISCORD_GUILD_ID}/${discordPost.channel_id}/${discordPost.message_id}`;
+    }
+  }
+
+  // 항상 텍스트 카드 표시
+  return `
+    <div class="carousel-card ${isActive ? 'active' : ''}" data-index="${index}">
+      <div class="pow-text-card">
         <div class="record-card-header">
           <span class="record-date">${date}</span>
           <span class="record-category">${categoryEmoji} ${categoryName}</span>
         </div>
-        <img src="${photoUrl}" alt="POW 인증카드" class="pow-badge-image" loading="lazy" />
-        <div class="record-card-footer">
-          <span class="record-time">${timeText}</span>
-        </div>
+        <div class="pow-text-time">${timeText}</div>
+        <div class="pow-text-plan">${plan}</div>
+        ${discordMessageUrl ? `
+          <a href="${discordMessageUrl}" target="_blank" class="discord-link-button">
+            Discord에서 보기 →
+          </a>
+        ` : ''}
       </div>
-    `;
-  } else {
-    // 인증카드 이미지가 없으면 텍스트 표시
-    return `
-      <div class="carousel-card ${isActive ? 'active' : ''}" data-index="${index}">
-        <div class="pow-text-card">
-          <div class="record-card-header">
-            <span class="record-date">${date}</span>
-            <span class="record-category">${categoryEmoji} ${categoryName}</span>
-          </div>
-          <div class="pow-text-time">${timeText}</div>
-          <div class="pow-text-plan">${plan}</div>
-        </div>
-      </div>
-    `;
-  }
+    </div>
+  `;
 }
 
 // ============================================

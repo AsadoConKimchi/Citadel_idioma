@@ -1279,6 +1279,30 @@ body.timer-modal-open {
   text-overflow: ellipsis;
 }
 
+.discord-link-button {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 10px 20px;
+  background: #5865f2;
+  color: #ffffff;
+  text-decoration: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
+}
+
+.discord-link-button:hover {
+  background: #4752c4;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.4);
+}
+
+.discord-link-button:active {
+  transform: translateY(0);
+}
+
 .carousel-controls {
   display: flex;
   justify-content: space-between;
