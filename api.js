@@ -324,3 +324,100 @@ async function migrateLocalStorageToBackend(discordId) {
     throw error;
   }
 }
+
+/**
+ * Meet-up API
+ */
+const MeetupAPI = {
+  // Meet-up 생성 (Organizer only)
+  async create(discordId, meetupData) {
+    return apiRequest('/api/meetups', {
+      method: 'POST',
+      body: JSON.stringify({
+        discord_id: discordId,
+        ...meetupData,
+      }),
+    });
+  },
+
+  // Meet-up 목록 조회
+  async list(status = 'all', limit = 20) {
+    const params = new URLSearchParams({ status, limit: limit.toString() });
+    return apiRequest(`/api/meetups?${params}`);
+  },
+
+  // Meet-up 상세 조회
+  async get(meetupId) {
+    return apiRequest(`/api/meetups/${meetupId}`);
+  },
+
+  // Meet-up 참여
+  async join(meetupId, discordId, pledgedAmount) {
+    return apiRequest(`/api/meetups/${meetupId}/join`, {
+      method: 'POST',
+      body: JSON.stringify({
+        discord_id: discordId,
+        pledged_amount: pledgedAmount,
+      }),
+    });
+  },
+
+  // Meet-up 참여 취소
+  async leave(meetupId, discordId) {
+    return apiRequest(`/api/meetups/${meetupId}/leave`, {
+      method: 'POST',
+      body: JSON.stringify({
+        discord_id: discordId,
+      }),
+    });
+  },
+
+  // QR 코드 생성 (Organizer only)
+  async generateQR(meetupId, discordId) {
+    return apiRequest(`/api/meetups/${meetupId}/generate-qr`, {
+      method: 'POST',
+      body: JSON.stringify({
+        discord_id: discordId,
+      }),
+    });
+  },
+
+  // QR 출석 체크
+  async checkIn(meetupId, discordId, qrData) {
+    return apiRequest(`/api/meetups/${meetupId}/check-in`, {
+      method: 'POST',
+      body: JSON.stringify({
+        discord_id: discordId,
+        qr_data: qrData,
+      }),
+    });
+  },
+
+  // Meet-up 상태 변경 (Organizer only)
+  async updateStatus(meetupId, discordId, status) {
+    return apiRequest(`/api/meetups/${meetupId}/update-status`, {
+      method: 'POST',
+      body: JSON.stringify({
+        discord_id: discordId,
+        status,
+      }),
+    });
+  },
+
+  // 미완료 기부 조회
+  async getPendingDonations(discordId) {
+    const params = new URLSearchParams({ discord_id: discordId });
+    return apiRequest(`/api/meetups/my-pending-donations?${params}`);
+  },
+
+  // 기부 완료
+  async completeDonation(meetupId, discordId, amount) {
+    return apiRequest(`/api/meetups/${meetupId}/complete-donation`, {
+      method: 'POST',
+      body: JSON.stringify({
+        discord_id: discordId,
+        amount,
+      }),
+    });
+  },
+};

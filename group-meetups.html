@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>그룹 POW Meet-up · Citadel POW</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <nav class="site-nav">
+      <a href="index.html">오늘</a>
+      <a href="study-history.html">Citadel POW</a>
+      <a href="my-pow-records.html">나의 POW</a>
+      <a href="donation-history.html">Donation</a>
+      <a href="group-meetups.html" class="active">그룹 POW</a>
+    </nav>
+
+    <header class="hero compact">
+      <div>
+        <p class="eyebrow">Citadel Scholarship</p>
+        <h1>그룹 POW Meet-up</h1>
+        <p class="subtitle">함께 모여 POW를 실천하고 기부하세요.</p>
+      </div>
+    </header>
+
+    <main>
+      <section class="grid single">
+        <div class="card">
+          <div class="stack">
+            <!-- 로그인 안내 -->
+            <div id="login-required" class="hint hidden">
+              로그인이 필요한 서비스입니다.
+            </div>
+
+            <!-- Organizer 전용 개최 버튼 -->
+            <div id="organizer-actions" class="hidden">
+              <button type="button" id="create-meetup-btn" class="btn btn-primary">
+                ➕ Meet-up 개최하기
+              </button>
+            </div>
+
+            <!-- Meet-up 생성 폼 (모달 또는 인라인) -->
+            <div id="meetup-creator-container" class="hidden"></div>
+
+            <!-- 상태 탭 -->
+            <div class="tab-nav">
+              <button type="button" class="tab-button active" data-status="scheduled">예정된</button>
+              <button type="button" class="tab-button" data-status="in_progress">진행중</button>
+              <button type="button" class="tab-button" data-status="completed">완료됨</button>
+            </div>
+
+            <!-- Meet-up 목록 -->
+            <div id="meetups-list-container">
+              <div id="loading-state" class="hint">
+                로딩 중...
+              </div>
+              <div id="empty-state" class="hint hidden">
+                등록된 meet-up이 없습니다.
+              </div>
+              <div id="meetups-grid" class="meetups-grid hidden">
+                <!-- Meet-up 카드들이 여기에 렌더링됨 -->
+              </div>
+            </div>
+
+            <!-- Meet-up 상세 모달 -->
+            <div id="meetup-details-modal" class="modal hidden">
+              <div class="modal-overlay"></div>
+              <div class="modal-content">
+                <button type="button" class="modal-close">&times;</button>
+                <div id="meetup-details-content">
+                  <!-- 상세 내용이 여기에 렌더링됨 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 참여하기 모달 -->
+            <div id="join-modal" class="modal hidden">
+              <div class="modal-overlay"></div>
+              <div class="modal-content modal-small">
+                <button type="button" class="modal-close">&times;</button>
+                <h2>Meet-up 참여</h2>
+                <form id="join-form">
+                  <div class="form-group">
+                    <label for="pledged-amount">약속 기부금액 (sats)</label>
+                    <input
+                      type="number"
+                      id="pledged-amount"
+                      name="pledged_amount"
+                      min="1"
+                      required
+                      placeholder="예: 10"
+                    />
+                    <p class="form-hint">활동 완료 후 기부하실 금액을 입력해주세요.</p>
+                  </div>
+                  <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="join-cancel-btn">취소</button>
+                    <button type="submit" class="btn btn-primary">참여하기</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <!-- QR 스캐너 모달 -->
+            <div id="qr-scanner-modal" class="modal hidden">
+              <div class="modal-overlay"></div>
+              <div class="modal-content">
+                <button type="button" class="modal-close">&times;</button>
+                <h2>출석 체크</h2>
+                <div id="qr-scanner-container">
+                  <!-- QR 스캐너가 여기에 렌더링됨 -->
+                </div>
+              </div>
+            </div>
+
+            <!-- 기부 팝업 -->
+            <div id="donation-popup" class="modal hidden">
+              <div class="modal-overlay"></div>
+              <div class="modal-content modal-small">
+                <h2>기부하기</h2>
+                <div id="donation-popup-content">
+                  <!-- 기부 내용이 여기에 렌더링됨 -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>© 2026 Citadel Scholarship. Made with ⚡ by Citadel community.</p>
+    </footer>
+
+    <!-- Scripts -->
+    <!-- html5-qrcode library for QR scanning -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <script src="api.js"></script>
+    <script src="components/meetup-creator.js"></script>
+    <script src="components/meetup-list.js"></script>
+    <script src="components/qr-generator.js"></script>
+    <script src="components/qr-scanner.js"></script>
+    <script src="components/donation-popup.js"></script>
+    <script src="group-meetups-app.js"></script>
+  </body>
+</html>
