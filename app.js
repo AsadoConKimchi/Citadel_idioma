@@ -2107,9 +2107,12 @@ const setAuthState = ({ authenticated, authorized, user, guild, error }) => {
       loadDonationsFromAPI(),
     ]).then(() => {
       // 로드 완료 후 UI 업데이트
+      loadStudyPlan();
       updateAccumulatedSats();
       updateTodayDonationSummary();
       renderSessions();
+      renderStudyHistoryPage();
+      renderDonationHistoryPage();
       updateDonationTotals();
       renderDonationHistory();
       console.log('모든 데이터를 API에서 로드 완료');
@@ -2537,12 +2540,8 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
+// 로그인 후 setAuthState에서 초기화됨
 initializeTotals();
-loadStudyPlan();
-renderSessions();
-renderStudyHistoryPage();
-renderDonationHistoryPage();
-promptPendingDailyDonation();
 
 walletModalClose?.addEventListener("click", closeWalletSelection);
 walletModal?.addEventListener("click", (event) => {
@@ -2622,7 +2621,6 @@ const loadSession = async ({ ignoreUrlFlag = false } = {}) => {
 };
 
 loadSession();
-promptPendingDailyDonation();
 if (discordRefresh) {
   discordRefresh.addEventListener("click", async () => {
     discordRefresh.disabled = true;
