@@ -24,10 +24,11 @@ const {
 } = process.env;
 
 // NOTE: 아래 환경변수들은 Cloudflare Workers로 이동되었습니다
-// - DISCORD_WEBHOOK_URL
-// - BLINK_LIGHTNING_ADDRESS
-// - BLINK_API_ENDPOINT
-// - BLINK_API_KEY
+// Render 서버에서는 더 이상 사용하지 않지만, 레거시 코드 호환성을 위해 정의
+const DISCORD_WEBHOOK_URL = undefined;
+const BLINK_LIGHTNING_ADDRESS = undefined;
+const BLINK_API_ENDPOINT = undefined;
+const BLINK_API_KEY = undefined;
 
 const discordClientId = (DISCORD_CLIENT_ID || "").trim();
 const discordClientSecret = (DISCORD_CLIENT_SECRET || "").trim();
@@ -36,8 +37,10 @@ const isSecureRedirect = discordRedirectUri.startsWith("https://");
 
 const isDiscordClientIdValid = (value) => /^\d{17,20}$/.test(String(value || "").trim());
 
+// NOTE: Blink 관련 기능은 Cloudflare Workers로 이동되었습니다
+// 하지만 기존 코드 호환성을 위해 기본값 유지
 const DEFAULT_BLINK_ADDRESS = "becadecitadel@blink.sv";
-const effectiveBlinkAddress = BLINK_LIGHTNING_ADDRESS || DEFAULT_BLINK_ADDRESS;
+const effectiveBlinkAddress = DEFAULT_BLINK_ADDRESS;
 
 const hasDiscordConfig =
   discordClientId &&
