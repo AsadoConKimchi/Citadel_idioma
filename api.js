@@ -404,6 +404,16 @@ const MeetupAPI = {
     });
   },
 
+  // Meet-up 취소 (Organizer only)
+  async cancel(meetupId, discordId) {
+    return apiRequest(`/api/meetups/${meetupId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({
+        discord_id: discordId,
+      }),
+    });
+  },
+
   // 미완료 기부 조회
   async getPendingDonations(discordId) {
     const params = new URLSearchParams({ discord_id: discordId });

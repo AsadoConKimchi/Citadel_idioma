@@ -889,7 +889,7 @@ const finishSession = () => {
   elapsedSeconds = 0;
   updateDisplay();
   updateTotals();
-  updateAccumulatedSats();
+  // updateAccumulatedSats(); // Discord 공유 성공 후에만 적립액 표시
   updateTodayDonationSummary();
   renderSessions();
   finishButton.textContent = "인증 카드 만들기 완료!";
@@ -2500,6 +2500,12 @@ const shareToDiscordOnly = async () => {
 
     // 디스코드 공유 성공 후 오늘의 목표 초기화
     localStorage.removeItem(planKey);
+    if (planInput) {
+      planInput.value = "";
+    }
+
+    // Discord 공유 성공 후 적립액 UI 업데이트
+    updateAccumulatedSats();
 
     // 페이지 새로고침으로 모든 상태 업데이트
     showAccumulationToast("디스코드 공유가 완료되었습니다. 페이지를 새로고침합니다...");

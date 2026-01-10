@@ -59,7 +59,7 @@ const leaderboard = new Leaderboard({
   container: dashboardLeaderboard,
   type: currentRankingType,
   category: currentCategory,
-  limit: 10,
+  limit: 5,
 });
 
 // Carousel 컴포넌트 초기화 (인기 기록용)
@@ -116,9 +116,9 @@ const updateDashboardTitle = () => {
   const typeName = currentRankingType === "time" ? "POW 시간" : "기부 금액";
 
   if (currentCategory === "all") {
-    dashboardLeaderboardTitle.textContent = `${typeName} TOP 10`;
+    dashboardLeaderboardTitle.textContent = `${typeName} TOP 5`;
   } else {
-    dashboardLeaderboardTitle.textContent = `${categoryName} ${typeName} TOP 10`;
+    dashboardLeaderboardTitle.textContent = `${categoryName} ${typeName} TOP 5`;
   }
 };
 

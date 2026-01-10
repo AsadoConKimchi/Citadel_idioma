@@ -1065,6 +1065,9 @@ body.timer-modal-open {
 
   .pow-badge-image {
     max-height: 260px;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
   }
 
   .carousel-btn {
@@ -1213,8 +1216,11 @@ body.timer-modal-open {
 }
 
 .carousel-card img.pow-badge-image {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: auto;
+  max-height: 450px;
+  object-fit: contain;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
