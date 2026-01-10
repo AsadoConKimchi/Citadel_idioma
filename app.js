@@ -1557,26 +1557,33 @@ const openLightningWalletWithPayload = async (payload, { onSuccess } = {}) => {
   });
   latestDonationPayload = payload;
   try {
-    const response = await fetch("/api/donation-invoice", {
+    // Create invoice using backend API
+    const invoiceResponse = await fetch(`${window.BACKEND_API_URL}/api/blink/create-invoice`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        amount: payload.sats,
+        memo: payload.donationNote || `Citadel POW - ${payload.donationMode}`,
+      }),
     });
-    if (!response.ok) {
+
+    if (!invoiceResponse.ok) {
       let errorMessage = "";
       try {
-        const parsed = await response.clone().json();
-        errorMessage = parsed?.message || "";
+        const parsed = await invoiceResponse.clone().json();
+        errorMessage = parsed?.error || "";
       } catch (error) {
-        errorMessage = await response.text();
+        errorMessage = await invoiceResponse.text();
       }
       throw new Error(errorMessage || "인보이스 생성에 실패했습니다.");
     }
-    const result = await response.json();
-    if (!result?.invoice) {
+
+    const invoiceResult = await invoiceResponse.json();
+    if (!invoiceResult?.success || !invoiceResult?.data?.invoice) {
       throw new Error("인보이스 응답이 비어 있습니다.");
     }
-    const normalizedInvoice = normalizeInvoice(result.invoice);
+
+    const normalizedInvoice = normalizeInvoice(invoiceResult.data.invoice);
     if (!normalizedInvoice) {
       throw new Error("인보이스 형식이 올바르지 않습니다.");
     }

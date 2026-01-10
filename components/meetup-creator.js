@@ -92,6 +92,7 @@ class MeetupCreator {
 
       // Meet-up 생성
       const meetupData = {
+        roles: this.currentUser.roles || [], // Discord role IDs for authorization check
         title: formData.title,
         description: formData.description || null,
         image_url: this.uploadedImageUrl || null,
