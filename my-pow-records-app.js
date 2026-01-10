@@ -262,13 +262,15 @@ function renderRecordCard(session, index, currentIndex) {
     // 인증카드 이미지가 있으면 이미지 표시
     return `
       <div class="carousel-card ${isActive ? 'active' : ''}" data-index="${index}">
-        <div class="record-card-header">
-          <span class="record-date">${date}</span>
-          <span class="record-category">${categoryEmoji} ${categoryName}</span>
-        </div>
-        <img src="${photoUrl}" alt="POW 인증카드" class="pow-badge-image" loading="lazy" />
-        <div class="record-card-footer">
-          <span class="record-time">${timeText}</span>
+        <div class="pow-image-card">
+          <div class="record-card-header">
+            <span class="record-date">${date}</span>
+            <span class="record-category">${categoryEmoji} ${categoryName}</span>
+          </div>
+          <img src="${photoUrl}" alt="POW 인증카드" class="pow-badge-image" loading="lazy" />
+          <div class="record-card-footer">
+            <span class="record-time">${timeText}</span>
+          </div>
         </div>
       </div>
     `;

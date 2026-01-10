@@ -969,6 +969,23 @@ body.timer-modal-open {
   padding: 16px;
   max-height: 500px;
   box-sizing: border-box;
+  overflow: hidden;
+  position: relative;
+}
+
+.carousel-card > * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.pow-image-card {
+  position: relative;
+  width: 100%;
+  max-width: calc(100% - 32px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
 }
 
 .pow-badge-image {
@@ -987,6 +1004,9 @@ body.timer-modal-open {
   border-radius: 12px;
   padding: 40px 20px;
   text-align: center;
+  width: calc(100% - 32px);
+  max-width: 100%;
+  box-sizing: border-box;
   min-height: 200px;
   display: flex;
   flex-direction: column;
