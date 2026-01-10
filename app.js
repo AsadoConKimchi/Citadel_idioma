@@ -1647,7 +1647,26 @@ const openLightningWallet = async () => {
     : 0;
 
   await openLightningWalletWithPayload(payload, {
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Discord 공유 먼저 실행
+      try {
+        await shareToDiscordAPI({
+          sessionId: sessionId,
+          dataUrl: dataUrl,
+          planText: lastSession.plan,
+          durationSeconds: donationSeconds,
+          donationScope: scope,
+          donationSats: sats,
+          totalDonatedSats: totalDonatedSats,
+          totalAccumulatedSats: totalAccumulatedSats,
+          donationNote: note,
+        });
+      } catch (error) {
+        console.error("Discord 공유 실패:", error);
+        alert("Discord 공유에 실패했습니다: " + error.message);
+      }
+
+      // 기부 기록 저장
       saveDonationHistoryEntry({
         date: todayKey,
         sats,
@@ -1668,7 +1687,8 @@ const openLightningWallet = async () => {
         totalAccumulatedSats: totalAccumulatedSats,
         totalDonatedSats: totalDonatedSats,
       });
-      showAccumulationToast("기부가 완료되었습니다. 페이지를 새로고침합니다...");
+
+      showAccumulationToast("기부 및 Discord 공유가 완료되었습니다. 페이지를 새로고침합니다...");
       setTimeout(() => {
         window.location.reload();
       }, 1500);
@@ -1718,10 +1738,27 @@ const openAccumulatedDonationPayment = async () => {
     ? Math.round((totalMinutes / lastSession.goalMinutes) * 100)
     : 0;
 
-  // 적립액 기부는 Blink 웹훅이 자동으로 디스코드에 공유
-  // 결제 완료 후 localStorage 업데이트 및 UI 갱신
+  // 결제 완료 후 Discord 공유 및 localStorage 업데이트
   await openLightningWalletWithPayload(payload, {
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Discord 공유 먼저 실행
+      try {
+        await shareToDiscordAPI({
+          sessionId: lastSession.sessionId,
+          dataUrl: dataUrl,
+          planText: lastSession.plan,
+          durationSeconds: donationSeconds,
+          donationScope: "accumulated", // 적립액 기부
+          donationSats: sats,
+          totalDonatedSats: totalDonatedSats,
+          totalAccumulatedSats: totalAccumulatedSats,
+          donationNote: note,
+        });
+      } catch (error) {
+        console.error("Discord 공유 실패:", error);
+        alert("Discord 공유에 실패했습니다: " + error.message);
+      }
+
       // pending daily에서 적립액 차감
       const pending = getPendingDaily();
       delete pending[todayKey];
@@ -1748,14 +1785,10 @@ const openAccumulatedDonationPayment = async () => {
         totalDonatedSats: totalDonatedSats,
       });
 
-      // UI 업데이트
-      updateAccumulatedSats();
-      updateTodayDonationSummary();
-      renderDonationHistoryPage();
-
-      if (shareStatus) {
-        shareStatus.textContent = "적립액 기부가 완료되었습니다!";
-      }
+      showAccumulationToast("적립액 기부 및 Discord 공유가 완료되었습니다. 페이지를 새로고침합니다...");
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     },
   });
 };
@@ -1851,12 +1884,15 @@ const closeWalletSelection = () => {
     return;
   }
 
-  // 결제 완료 후 콜백 실행 (사용자가 모달을 닫으면 결제가 완료된 것으로 간주)
+  // 결제 완료 확인
   if (pendingOnSuccessCallback && typeof pendingOnSuccessCallback === "function") {
-    try {
-      pendingOnSuccessCallback();
-    } catch (error) {
-      console.error("결제 완료 콜백 실행 중 오류:", error);
+    const confirmed = window.confirm("결제를 완료하셨습니까?\n\n완료하지 않았다면 '취소'를 눌러주세요.");
+    if (confirmed) {
+      try {
+        pendingOnSuccessCallback();
+      } catch (error) {
+        console.error("결제 완료 콜백 실행 중 오류:", error);
+      }
     }
     pendingOnSuccessCallback = null;
   }
@@ -2432,6 +2468,62 @@ const getBadgeDataUrl = () => {
   const context = scaled.getContext("2d");
   context.drawImage(badgeCanvas, 0, 0, scaled.width, scaled.height);
   return scaled.toDataURL("image/png", 0.92);
+};
+
+// Discord 공유 API 호출 공통 함수
+const shareToDiscordAPI = async ({
+  sessionId,
+  dataUrl,
+  planText,
+  durationSeconds,
+  donationScope,
+  donationSats,
+  totalDonatedSats,
+  totalAccumulatedSats,
+  donationNote,
+}) => {
+  // 현재 로그인한 사용자 정보 가져오기
+  const sessionResponse = await fetch('/api/session');
+  const sessionData = await sessionResponse.json();
+
+  if (!sessionData.authenticated || !sessionData.user?.id) {
+    throw new Error("로그인이 필요합니다.");
+  }
+
+  // Bot이 기대하는 형식으로 데이터 준비
+  const botPayload = {
+    discord_id: sessionData.user.id,
+    session_id: sessionId,
+    photo_url: dataUrl,
+    plan_text: planText || "목표 미입력",
+    donation_mode: donationMode?.value || "pow-writing",
+    duration_seconds: durationSeconds || 0,
+    donation_scope: donationScope,
+    donation_sats: donationSats,
+    total_donated_sats: totalDonatedSats,
+    total_accumulated_sats: totalAccumulatedSats,
+    donation_note: donationNote || "",
+  };
+
+  // 백엔드 API를 통해 Discord에 전송
+  const response = await fetch("https://citadel-pow-backend.magadenuevo2025.workers.dev/api/discord-posts/share", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(botPayload),
+  });
+
+  if (!response.ok) {
+    let errorMessage = "";
+    try {
+      const parsed = await response.clone().json();
+      errorMessage = parsed?.error || "";
+    } catch (error) {
+      errorMessage = await response.text();
+    }
+    throw new Error(errorMessage || "디스코드 공유에 실패했습니다.");
+  }
+
+  return await response.json();
 };
 
 const shareToDiscordOnly = async () => {
