@@ -113,7 +113,9 @@ const loadSessions = async () => {
     // 첫 번째 세션의 photo_url 확인
     if (allSessions.length > 0) {
       console.log("첫 번째 세션 데이터:", allSessions[0]);
-      console.log("photo_url:", allSessions[0].photo_url);
+      console.log("discord_posts:", allSessions[0].discord_posts);
+      const photoUrl = allSessions[0].discord_posts?.[0]?.photo_url || allSessions[0].photo_url;
+      console.log("최종 photo_url:", photoUrl);
     }
 
     // 필터 적용
@@ -259,7 +261,8 @@ const updateStats = () => {
  */
 function renderRecordCard(session, index, currentIndex) {
   const isActive = index === currentIndex;
-  const photoUrl = session.photo_url;
+  // discord_posts에서 photo_url 가져오기 (없으면 session.photo_url 사용)
+  const photoUrl = session.discord_posts?.[0]?.photo_url || session.photo_url;
   const seconds = session.duration_seconds ?? (session.duration_minutes ? session.duration_minutes * 60 : 0);
   const timeText = seconds > 0 ? formatDuration(seconds, false) : "0분";
   const plan = session.plan_text || "계획 없음";
