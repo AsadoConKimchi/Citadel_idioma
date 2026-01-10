@@ -21,11 +21,11 @@ const {
   DISCORD_GUILD_NAME = "citadel.sx",
   SESSION_SECRET,
   PORT = 3000,
+  DISCORD_WEBHOOK_URL,
 } = process.env;
 
 // NOTE: 아래 환경변수들은 Cloudflare Workers로 이동되었습니다
-// Render 서버에서는 더 이상 사용하지 않지만, 레거시 코드 호환성을 위해 정의
-const DISCORD_WEBHOOK_URL = undefined;
+// Render 서버에서는 더 이상 사용하지 않습니다
 const BLINK_LIGHTNING_ADDRESS = undefined;
 const BLINK_API_ENDPOINT = undefined;
 const BLINK_API_KEY = undefined;
