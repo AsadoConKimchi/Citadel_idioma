@@ -225,11 +225,13 @@ const updateStats = () => {
     return;
   }
 
-  const totalMinutes = filteredSessions.reduce((sum, session) => {
-    return sum + (session.duration_minutes || 0);
+  // duration_seconds 합산 (duration_seconds 우선, 없으면 duration_minutes * 60)
+  const totalSeconds = filteredSessions.reduce((sum, session) => {
+    const seconds = session.duration_seconds ?? (session.duration_minutes ? session.duration_minutes * 60 : 0);
+    return sum + seconds;
   }, 0);
 
-  totalMinutesEl.textContent = formatMinutesToHoursMinutes(totalMinutes);
+  totalMinutesEl.textContent = formatDuration(totalSeconds, false);
   sessionCountEl.textContent = `${filteredSessions.length}개`;
 
   toggleElement(statsSummary, true);
@@ -249,7 +251,8 @@ const updateStats = () => {
 function renderRecordCard(session, index, currentIndex) {
   const isActive = index === currentIndex;
   const photoUrl = session.photo_url;
-  const minutes = session.duration_minutes || 0;
+  const seconds = session.duration_seconds ?? (session.duration_minutes ? session.duration_minutes * 60 : 0);
+  const timeText = seconds > 0 ? formatDuration(seconds, false) : "0분";
   const plan = session.plan_text || "계획 없음";
   const date = formatDate(session.created_at);
   const categoryEmoji = getCategoryEmoji(session.donation_mode);
@@ -265,7 +268,7 @@ function renderRecordCard(session, index, currentIndex) {
         </div>
         <img src="${photoUrl}" alt="POW 인증카드" class="pow-badge-image" loading="lazy" />
         <div class="record-card-footer">
-          <span class="record-time">${minutes}분</span>
+          <span class="record-time">${timeText}</span>
         </div>
       </div>
     `;
@@ -278,7 +281,7 @@ function renderRecordCard(session, index, currentIndex) {
             <span class="record-date">${date}</span>
             <span class="record-category">${categoryEmoji} ${categoryName}</span>
           </div>
-          <div class="pow-text-time">${minutes}분</div>
+          <div class="pow-text-time">${timeText}</div>
           <div class="pow-text-plan">${plan}</div>
         </div>
       </div>
